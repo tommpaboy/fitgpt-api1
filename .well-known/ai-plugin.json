@@ -2,16 +2,17 @@
   "schema_version": "v1",
   "name_for_human": "FitGPT",
   "name_for_model": "fitgpt",
-  "description_for_human": "Analysera din hälsa, aktivitet och sömn från Fitbit.",
-  "description_for_model": "Få tillgång till användarens Fitbit-data för steg, kalorier, sömn, puls och träningspass. Hämta data för specifika datum eller lista tidigare dagar.",
+  "description_for_human": "Analyserar din Fitbit-data och ger personlig feedback på träning, sömn, återhämtning och välmående.",
+  "description_for_model": "Plugin för att hämta användarens Fitbit-data som steg, kalorier, träning och sömn för olika dagar.",
   "auth": {
     "type": "none"
   },
   "api": {
     "type": "openapi",
-    "url": "https://fitgpt-2364.onrender.com/.well-known/openapi.yaml"
+    "url": "https://fitgpt-2364.onrender.com/.well-known/openapi.yaml",
+    "is_user_authenticated": false
   },
-  "logo_url": "https://fitgpt-2364.onrender.com/logo.png",
-  "contact_email": "tommpaboy@example.com",
+  "logo_url": "https://fitgpt-2364.onrender.com/static/logo.png",
+  "contact_email": "support@fitgpt.app",
   "legal_info_url": "https://fitgpt-2364.onrender.com/legal"
 }
