@@ -1,36 +1,86 @@
-from datetime import date
+from textwrap import dedent
 
-openapi_yaml = f"""
-openapi: 3.0.0
+# Innehållet till en uppdaterad openapi.yaml
+openapi_yaml = dedent("""
+openapi: 3.0.1
 info:
   title: FitGPT API
-  version: 1.0.0
+  description: API för att hämta användarens Fitbit-data.
+  version: '1.0'
 servers:
   - url: https://fitgpt-2364.onrender.com
 paths:
-  /data:
+  /authorize:
     get:
-      summary: Hämta all tillgänglig Fitbit-data
-      description: Hämtar Fitbit-data för aktuell dag eller valfritt datum (ex. steg, sömn, träning, puls, kalorier).
-      parameters:
-        - in: query
-          name: date
-          schema:
-            type: string
-            example: "{date.today().isoformat()}"
-          description: Datum i formatet YYYY-MM-DD. Om inget anges används dagens datum.
+      summary: Initiera OAuth-flöde till Fitbit
       responses:
         '200':
-          description: Returnerar Fitbit-data för angivet datum.
+          description: OAuth redirect startad
+
+  /callback:
+    get:
+      summary: Ta emot OAuth-token från Fitbit
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Token mottagen och lagrad
+
+  /status:
+    get:
+      summary: Kontrollera API-status
+      responses:
+        '200':
+          description: API är igång
+
+  /days:
+    get:
+      summary: Lista tillgängliga datum med data
+      responses:
+        '200':
+          description: Lista över datum
           content:
             application/json:
               schema:
                 type: object
-"""
+                properties:
+                  days:
+                    type: array
+                    items:
+                      type: string
+                      format: date
 
-# Spara till fil
-path = "/mnt/data/openapi.yaml"
-with open(path, "w") as f:
+  /data/{date}:
+    get:
+      summary: Hämta all Fitbit-data för ett visst datum
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Fitbit-data för det angivna datumet
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+""")
+
+# Spara filen
+file_path = "/mnt/data/openapi.yaml"
+with open(file_path, "w") as f:
     f.write(openapi_yaml)
 
-path
+file_path
