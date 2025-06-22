@@ -1,0 +1,17 @@
+{
+  "schema_version": "v1",
+  "name_for_model": "fitgpt",
+  "name_for_human": "FitGPT",
+  "description_for_model": "Hämtar användarens Fitbit-data (steg, sömn, kalorier, m.m.) från deras personliga API. Stöd för dagsdata och historik.",
+  "description_for_human": "Anslut din Fitbit och få GPT-analyser av dina steg, sömn, puls, kalorier m.m.",
+  "auth": {
+    "type": "none"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://fitgpt-2364.onrender.com/.well-known/openapi.yaml"
+  },
+  "logo_url": "https://fitgpt-2364.onrender.com/logo.png",
+  "contact_email": "tommy@exempel.se",
+  "legal_info_url": "https://fitgpt-2364.onrender.com/legal"
+}
