@@ -111,5 +111,4 @@ if __name__ == "__main__":
 
 # Spara som main.py
 main_path = Path("/mnt/data/main.py")
-main_path.write_text(main_py_content.strip())
 main_path.name
