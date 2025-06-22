@@ -1,18 +1,32 @@
 openapi: 3.0.1
 info:
-  title: FitGPT Connector API
-  description: API som ger tillgång till användarens Fitbit-data via GPT.
+  title: FitGPT API
+  description: API för att hämta och analysera data från Fitbit.
   version: "1.0.0"
+
 servers:
   - url: https://fitgpt-2364.onrender.com
+
 paths:
+  /:
+    get:
+      summary: Kontrollera att API:t är igång
+      operationId: getHome
+      responses:
+        "200":
+          description: FitGPT är igång-meddelande
+          content:
+            text/html:
+              schema:
+                type: string
+
   /authorize:
     get:
-      summary: Initierar Fitbit-inloggning
-      operationId: authorizeUser
+      summary: Hämta auktoriserings-URL för Fitbit OAuth
+      operationId: getAuthorizeUrl
       responses:
-        '200':
-          description: Returnerar en URL för att logga in via Fitbit
+        "200":
+          description: URL för Fitbit OAuth
           content:
             application/json:
               schema:
@@ -20,9 +34,11 @@ paths:
                 properties:
                   auth_url:
                     type: string
+                    format: uri
+
   /callback:
     get:
-      summary: Tar emot Fitbit-token efter inloggning
+      summary: Hantera återkoppling från Fitbit och spara access token
       operationId: handleCallback
       parameters:
         - name: code
@@ -31,8 +47,8 @@ paths:
           schema:
             type: string
       responses:
-        '200':
-          description: Token mottagen och sparad
+        "200":
+          description: Token mottagen
           content:
             application/json:
               schema:
@@ -42,13 +58,14 @@ paths:
                     type: string
                   token_data:
                     type: object
+
   /data:
     get:
-      summary: Hämtar dagens aktivitetsdata (steg, sömn, puls, kalorier)
-      operationId: getFitbitData
+      summary: Hämta kombinerad Fitbit-data för idag
+      operationId: getCombinedFitbitData
       responses:
-        '200':
-          description: Fitbit-data hämtad
+        "200":
+          description: Returnerar dagens Fitbit-data
           content:
             application/json:
               schema:
