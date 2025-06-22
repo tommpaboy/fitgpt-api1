@@ -2,16 +2,17 @@
   "schema_version": "v1",
   "name_for_human": "FitGPT",
   "name_for_model": "fitgpt",
-  "description_for_human": "Få insikt i din hälsa med hjälp av din Fitbit-data.",
-  "description_for_model": "Använd detta plugin för att hämta information om användarens steg, sömn, träning, hjärtfrekvens, kalorier m.m. från Fitbit.",
+  "description_for_human": "Analysera din Fitbit-data och få smart återkoppling.",
+  "description_for_model": "Analyserar användarens Fitbit-data och ger svar baserat på hälsa, sömn, aktivitet och puls.",
   "auth": {
     "type": "none"
   },
   "api": {
     "type": "openapi",
-    "url": "https://fitgpt-2364.onrender.com/openapi.json"
+    "url": "https://fitgpt-2364.onrender.com/openapi.json",
+    "is_user_authenticated": false
   },
   "logo_url": "https://fitgpt-2364.onrender.com/logo.png",
-  "contact_email": "din@email.se",
-  "legal_info_url": "https://dinwebbplats.se/villkor"
+  "contact_email": "tommy@exempel.se",
+  "legal_info_url": "https://fitgpt-2364.onrender.com/legal"
 }
