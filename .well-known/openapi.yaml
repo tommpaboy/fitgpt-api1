@@ -1,67 +1,69 @@
 openapi: 3.0.1
 info:
   title: FitGPT API
-  description: API för att analysera Fitbit-data dag för dag, inklusive aktivitet, kalorier, sömn och puls.
-  version: "1.0.0"
+  description: Hämta hälsodata från Fitbit för att ge personliga insikter, motivation och feedback.
+  version: '1.0.0'
 servers:
   - url: https://fitgpt-2364.onrender.com
 paths:
-  /days:
+  /authorize:
     get:
-      summary: Lista tillgängliga Fitbit-dagar
-      operationId: listAvailableDays
+      summary: Starta OAuth-flöde
+      operationId: authorize
       responses:
-        '200':
-          description: Lyckad hämtning av tillgängliga dagar
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  days:
-                    type: array
-                    items:
-                      type: string
-                      example: "2025-06-22"
-  /data/{date}:
+        '302':
+          description: Omdirigerar till Fitbit OAuth-inloggning
+
+  /callback:
     get:
-      summary: Hämta all Fitbit-data för ett specifikt datum
-      operationId: getDayData
+      summary: Callback från Fitbit efter inloggning
+      operationId: callback
       parameters:
-        - name: date
-          in: path
+        - name: code
+          in: query
           required: true
-          description: Datum i formatet YYYY-MM-DD
           schema:
             type: string
-            example: "2025-06-22"
       responses:
         '200':
-          description: Fitbit-data för dagen
+          description: Token mottagen
+
+  /data:
+    get:
+      summary: Hämtar användarens senaste hälsodata från Fitbit
+      operationId: getData
+      responses:
+        '200':
+          description: Hälsodata hämtad
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  date:
-                    type: string
                   steps:
                     type: integer
                   calories:
-                    type: integer
-                  distance:
                     type: number
-                  heart_rate:
-                    type: object
-                    properties:
-                      resting:
-                        type: integer
-                      avg:
-                        type: integer
                   sleep:
                     type: object
-                    properties:
-                      duration:
-                        type: integer
-                      efficiency:
-                        type: number
+                  heart_rate:
+                    type: object
+        '404':
+          description: Data ej hittad eller användare inte autentiserad
+
+  /days:
+    get:
+      summary: Lista alla dagar som det finns data för
+      operationId: listDays
+      responses:
+        '200':
+          description: Lista med datum
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+                  format: date
+
+components: {}
