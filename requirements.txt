@@ -1,6 +1,4 @@
-Flask
 requests
 python-dotenv
-gunicorn
 fastapi
 uvicorn
