@@ -1,4 +1,4 @@
-fastapi
-uvicorn
+Flask
 requests
 python-dotenv
+gunicorn
