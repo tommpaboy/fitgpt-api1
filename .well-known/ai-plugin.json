@@ -1,22 +1,18 @@
 {
   "schema_version": "v1",
-  "name_for_model": "fitgpt",
   "name_for_human": "FitGPT",
-  "description_for_model": "Få hälsodata från användarens Fitbit för att ge pepp, insikter och rekommendationer.",
-  "description_for_human": "Hämta din Fitbit-data och få personliga råd och motivation!",
+  "name_for_model": "fitgpt",
+  "description_for_human": "Analysera din Fitbit-data och få pepp, insikter och förslag på förbättringar",
+  "description_for_model": "Analysera användarens Fitbit-data och ge insikter, motivation och förslag baserat på steg, sömn, träning, hjärtfrekvens m.m.",
   "auth": {
-    "type": "oauth",
-    "client_url": "https://fitgpt-2364.onrender.com/login",
-    "authorization_url": "https://www.fitbit.com/oauth2/authorize",
-    "authorization_content_type": "application/x-www-form-urlencoded",
-    "scope": "activity heartrate location nutrition oxygen_saturation profile respiratory_rate settings sleep social temperature weight",
-    "token_url": "https://api.fitbit.com/oauth2/token"
+    "type": "none"
   },
   "api": {
     "type": "openapi",
-    "url": "https://fitgpt-2364.onrender.com/.well-known/openapi.yaml"
+    "url": "https://fitgpt-2364.onrender.com/.well-known/openapi.yaml",
+    "is_user_authenticated": false
   },
-  "logo_url": "https://fitgpt-2364.onrender.com/static/logo.png",
-  "contact_email": "support@fitgpt.app",
+  "logo_url": "https://fitgpt-2364.onrender.com/logo.png",
+  "contact_email": "tommpaboy@example.com",
   "legal_info_url": "https://fitgpt-2364.onrender.com/legal"
 }
