@@ -1,57 +1,37 @@
 openapi: 3.0.1
 info:
   title: FitGPT API
-  description: API för att hämta och analysera Fitbit-data för personlig hälsa och motivation.
-  version: '1.0'
+  description: API för att hämta användarens Fitbit-data och ge personlig återkoppling.
+  version: '1.0.0'
 servers:
   - url: https://fitgpt-2364.onrender.com
 paths:
-  /:
-    get:
-      summary: Hälsningsmeddelande
-      operationId: root
-      responses:
-        '200':
-          description: Hälsning
-          content:
-            text/plain:
-              schema:
-                type: string
-
-  /authorize:
-    get:
-      summary: Initierar OAuth-flöde för Fitbit
-      operationId: authorize
-      responses:
-        '302':
-          description: Redirectar till Fitbit OAuth
-
-  /callback:
-    get:
-      summary: Tar emot OAuth-token från Fitbit
-      operationId: callback
-      parameters:
-        - name: code
-          in: query
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Token sparad
-
   /data:
     get:
-      summary: Hämtar Fitbit-data för användaren
+      summary: Hämta användarens Fitbit-data
       operationId: getFitbitData
       responses:
         '200':
-          description: Användarens Fitbit-data
+          description: Lyckad hämtning av data
           content:
             application/json:
               schema:
                 type: object
-        '401':
-          description: Ej auktoriserad – Fitbit-token saknas eller ogiltig
+                properties:
+                  steps:
+                    type: integer
+                    example: 10342
+                  calories:
+                    type: integer
+                    example: 2650
+                  sleep_hours:
+                    type: number
+                    format: float
+                    example: 7.5
+                  heart_rate_resting:
+                    type: integer
+                    example: 56
         '404':
-          description: Ingen data hittades
+          description: Data hittades inte
+        '500':
+          description: Serverfel
