@@ -1,18 +1,17 @@
 {
   "schema_version": "v1",
-  "name_for_model": "fitgpt",
   "name_for_human": "FitGPT",
-  "description_for_model": "Få personlig feedback baserat på användarens Fitbit-data. Använd API:et för att hämta tidigare aktivitetsdata.",
-  "description_for_human": "Din personliga hälsocoach med data direkt från din Fitbit.",
+  "name_for_model": "fitgpt",
+  "description_for_human": "Få insikt i din hälsa med hjälp av din Fitbit-data.",
+  "description_for_model": "Använd detta plugin för att hämta information om användarens steg, sömn, träning, hjärtfrekvens, kalorier m.m. från Fitbit.",
   "auth": {
     "type": "none"
   },
   "api": {
     "type": "openapi",
-    "url": "https://fitgpt-2364.onrender.com/.well-known/openapi.yaml",
-    "is_user_authenticated": false
+    "url": "https://fitgpt-2364.onrender.com/openapi.json"
   },
   "logo_url": "https://fitgpt-2364.onrender.com/logo.png",
-  "contact_email": "tommpaboy@gmail.com",
-  "legal_info_url": "https://fitgpt-2364.onrender.com/legal"
+  "contact_email": "din@email.se",
+  "legal_info_url": "https://dinwebbplats.se/villkor"
 }
