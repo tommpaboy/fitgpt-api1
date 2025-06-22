@@ -1,9 +1,9 @@
 {
   "schema_version": "v1",
-  "name_for_human": "FitGPT",
   "name_for_model": "fitgpt",
-  "description_for_human": "Analysera din Fitbit-data och få pepp, insikter och förslag på förbättringar",
-  "description_for_model": "Analysera användarens Fitbit-data och ge insikter, motivation och förslag baserat på steg, sömn, träning, hjärtfrekvens m.m.",
+  "name_for_human": "FitGPT",
+  "description_for_model": "Få personlig feedback baserat på användarens Fitbit-data. Använd API:et för att hämta tidigare aktivitetsdata.",
+  "description_for_human": "Din personliga hälsocoach med data direkt från din Fitbit.",
   "auth": {
     "type": "none"
   },
@@ -13,6 +13,6 @@
     "is_user_authenticated": false
   },
   "logo_url": "https://fitgpt-2364.onrender.com/logo.png",
-  "contact_email": "tommpaboy@example.com",
+  "contact_email": "tommpaboy@gmail.com",
   "legal_info_url": "https://fitgpt-2364.onrender.com/legal"
 }
