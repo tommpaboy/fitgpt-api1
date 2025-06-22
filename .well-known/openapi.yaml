@@ -1,37 +1,64 @@
 openapi: 3.0.1
 info:
-  title: FitGPT API
-  description: API för att hämta användarens Fitbit-data och ge personlig återkoppling.
-  version: '1.0.0'
+  title: FitGPT Connector API
+  description: API som ger tillgång till användarens Fitbit-data via GPT.
+  version: "1.0.0"
 servers:
   - url: https://fitgpt-2364.onrender.com
 paths:
+  /authorize:
+    get:
+      summary: Initierar Fitbit-inloggning
+      operationId: authorizeUser
+      responses:
+        '200':
+          description: Returnerar en URL för att logga in via Fitbit
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  auth_url:
+                    type: string
+  /callback:
+    get:
+      summary: Tar emot Fitbit-token efter inloggning
+      operationId: handleCallback
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Token mottagen och sparad
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  token_data:
+                    type: object
   /data:
     get:
-      summary: Hämta användarens Fitbit-data
+      summary: Hämtar dagens aktivitetsdata (steg, sömn, puls, kalorier)
       operationId: getFitbitData
       responses:
         '200':
-          description: Lyckad hämtning av data
+          description: Fitbit-data hämtad
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   steps:
-                    type: integer
-                    example: 10342
+                    type: object
                   calories:
-                    type: integer
-                    example: 2650
-                  sleep_hours:
-                    type: number
-                    format: float
-                    example: 7.5
-                  heart_rate_resting:
-                    type: integer
-                    example: 56
-        '404':
-          description: Data hittades inte
-        '500':
-          description: Serverfel
+                    type: object
+                  sleep:
+                    type: object
+                  heart:
+                    type: object
