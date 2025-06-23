@@ -1,7 +1,7 @@
 openapi: 3.0.1
 info:
   title: FitGPT API
-  description: API för att hämta och analysera data från Fitbit.
+  description: API för att hämta och analysera data från Fitbit via GPT.
   version: "1.0.0"
 
 servers:
@@ -22,24 +22,16 @@ paths:
 
   /authorize:
     get:
-      summary: Hämta auktoriserings-URL för Fitbit OAuth
-      operationId: getAuthorizeUrl
+      summary: Redirecta användaren till Fitbit OAuth
+      operationId: authorizeUser
       responses:
-        "200":
-          description: URL för Fitbit OAuth
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  auth_url:
-                    type: string
-                    format: uri
+        "302":
+          description: Redirect till Fitbit OAuth-login
 
   /callback:
     get:
-      summary: Hantera återkoppling från Fitbit och spara access token
-      operationId: handleCallback
+      summary: Ta emot auth-code från Fitbit och spara access_token
+      operationId: handleOAuthCallback
       parameters:
         - name: code
           in: query
@@ -48,7 +40,7 @@ paths:
             type: string
       responses:
         "200":
-          description: Token mottagen
+          description: Token mottagen eller felmeddelande
           content:
             application/json:
               schema:
@@ -61,16 +53,32 @@ paths:
 
   /data:
     get:
-      summary: Hämta kombinerad Fitbit-data för idag
+      summary: Hämta kombinerad Fitbit-data för valfritt antal dagar
       operationId: getCombinedFitbitData
+      parameters:
+        - name: days
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+            maximum: 30
+          description: Antal dagar bakåt att hämta data för (standard: 1)
       responses:
         "200":
-          description: Returnerar dagens Fitbit-data
+          description: Returnerar kombinerad Fitbit-data
           content:
             application/json:
               schema:
                 type: object
                 properties:
+                  from:
+                    type: string
+                    format: date
+                  to:
+                    type: string
+                    format: date
                   steps:
                     type: object
                   calories:
