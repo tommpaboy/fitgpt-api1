@@ -39,8 +39,6 @@ def authorize():
 @app.get("/callback")
 def callback(code: str):
     token_url = "https://api.fitbit.com/oauth2/token"
-    
-    # 👉 FIX: Korrekt Base64-kodning av client_id + secret
     auth_header = base64.b64encode(f"{FITBIT_CLIENT_ID}:{FITBIT_CLIENT_SECRET}".encode()).decode()
 
     headers = {
@@ -85,14 +83,12 @@ def refresh_token_if_needed():
     with open(TOKEN_FILE, "r") as f:
         token_data = json.load(f)
 
-    # Testa om token fortfarande är giltig
     headers = {"Authorization": f"Bearer {token_data['access_token']}"}
     test_response = requests.get("https://api.fitbit.com/1/user/-/profile.json", headers=headers)
 
     if test_response.status_code == 200:
-        return token_data  # Token funkar fortfarande
+        return token_data
 
-    # Försök förnya med refresh_token
     print("🔁 Förnyar token...")
     token_url = "https://api.fitbit.com/oauth2/token"
     auth_header = base64.b64encode(f"{FITBIT_CLIENT_ID}:{FITBIT_CLIENT_SECRET}".encode()).decode()
@@ -138,49 +134,64 @@ def get_combined_data(days: int = 1):
     start_date = (today - timedelta(days=days - 1)).isoformat()
     end_date = today.isoformat()
 
-    steps = get_fitbit_data("activities/steps", start_date, end_date)
-    calories = get_fitbit_data("activities/calories", start_date, end_date)
-    sleep = get_fitbit_data("sleep", start_date, end_date)
-    heart = get_fitbit_data("activities/heart", start_date, end_date)
-
-    return {
-        "from": start_date,
-        "to": end_date,
-        "steps": steps,
-        "calories": calories,
-        "sleep": sleep,
-        "heart": heart,
-    }
-@app.get("/data/extended")
-def get_extended_data(days: int = 1):
-    today = date.today()
-    start_date = (today - timedelta(days=days - 1)).isoformat()
-    end_date = today.isoformat()
-
     return {
         "from": start_date,
         "to": end_date,
         "steps": get_fitbit_data("activities/steps", start_date, end_date),
         "calories": get_fitbit_data("activities/calories", start_date, end_date),
+        "sleep": get_fitbit_data("sleep", start_date, end_date),
+        "heart": get_fitbit_data("activities/heart", start_date, end_date),
+    }
+
+@app.get("/data/extended")
+def get_extended_data(days: int = 1, date: str = None):
+    if date:
+        start_date = end_date = date
+    else:
+        today = date.today()
+        start_date = (today - timedelta(days=days - 1)).isoformat()
+        end_date = today.isoformat()
+
+    return {
+        "from": start_date,
+        "to": end_date,
+        # 🏋️ Träning
+        "steps": get_fitbit_data("activities/steps", start_date, end_date),
+        "calories": get_fitbit_data("activities/calories", start_date, end_date),
+        "active_calories": get_fitbit_data("activities/activityCalories", start_date, end_date),
+        "activity_log": get_fitbit_data("activities", start_date, end_date),
         "distance": get_fitbit_data("activities/distance", start_date, end_date),
         "floors": get_fitbit_data("activities/floors", start_date, end_date),
         "elevation": get_fitbit_data("activities/elevation", start_date, end_date),
-        "heart": get_fitbit_data("activities/heart", start_date, end_date),
         "activity_levels": {
             "sedentary": get_fitbit_data("activities/minutesSedentary", start_date, end_date),
             "lightly_active": get_fitbit_data("activities/minutesLightlyActive", start_date, end_date),
             "fairly_active": get_fitbit_data("activities/minutesFairlyActive", start_date, end_date),
             "very_active": get_fitbit_data("activities/minutesVeryActive", start_date, end_date),
         },
-        "sleep": get_fitbit_data("sleep", start_date, end_date),
-        "sleep_stages": get_fitbit_data("sleep/stages", start_date, end_date),
+
+        # ❤️ Puls & hälsa
+        "heart": get_fitbit_data("activities/heart", start_date, end_date),
         "spo2": get_fitbit_data("spo2", start_date, end_date),
         "breathing_rate": get_fitbit_data("br", start_date, end_date),
         "core_temp": get_fitbit_data("temp/core", start_date, end_date),
         "skin_temp": get_fitbit_data("temp/skin", start_date, end_date),
         "stress": get_fitbit_data("body/stressManagement", start_date, end_date),
+
+        # 😴 Sömn
+        "sleep": get_fitbit_data("sleep", start_date, end_date),
+        "sleep_stages": get_fitbit_data("sleep/stages", start_date, end_date),
+
+        # ⚖️ Kroppsvärden
         "weight": get_fitbit_data("body/weight", start_date, end_date),
         "fat": get_fitbit_data("body/fat", start_date, end_date),
         "bmi": get_fitbit_data("body/bmi", start_date, end_date),
+
+        # 🥗 Kost
+        "calories_in": get_fitbit_data("foods/log/caloriesIn", start_date, end_date),
+        "nutrition": get_fitbit_data("foods/log", start_date, end_date),
+        "water": get_fitbit_data("foods/log/water", start_date, end_date),
+
+        # 👤 Profil
         "profile": get_fitbit_data("profile.json", start_date, end_date),
     }
