@@ -1,7 +1,7 @@
 openapi: 3.0.1
 info:
   title: FitGPT API
-  description: API för att hämta och analysera data från Fitbit via GPT.
+  description: API för att hämta och analysera Fitbit-data i GPT, inklusive träning, sömn, puls och kost.
   version: "1.0.0"
 
 servers:
@@ -53,7 +53,7 @@ paths:
 
   /data:
     get:
-      summary: Hämta kombinerad Fitbit-data för valfritt antal dagar
+      summary: Hämta sammanfattad Fitbit-data för valfritt antal dagar
       operationId: getCombinedFitbitData
       parameters:
         - name: days
@@ -64,10 +64,10 @@ paths:
             default: 1
             minimum: 1
             maximum: 30
-          description: Antal dagar bakåt att hämta data för (standard: 1)
+          description: Antal dagar att hämta data för (standard: 1)
       responses:
         "200":
-          description: Returnerar kombinerad Fitbit-data
+          description: Returnerar sammanfattad Fitbit-data
           content:
             application/json:
               schema:
@@ -90,7 +90,7 @@ paths:
 
   /data/extended:
     get:
-      summary: Hämta fullständig Fitbit-data för ett specifikt datum eller antal dagar
+      summary: Hämta detaljerad Fitbit-data för ett specifikt datum eller ett antal dagar
       operationId: getExtendedFitbitData
       parameters:
         - name: days
@@ -101,17 +101,17 @@ paths:
             default: 1
             minimum: 1
             maximum: 30
-          description: Antal dagar bakåt att hämta data för (standard: 1)
+          description: Antal dagar att hämta data för (standard: 1)
         - name: date
           in: query
           required: false
           schema:
             type: string
             format: date
-          description: Specifikt datum att hämta data för (ÅÅÅÅ-MM-DD)
+          description: Datum att hämta data för (ÅÅÅÅ-MM-DD)
       responses:
         "200":
-          description: Returnerar detaljerad Fitbit-data
+          description: Returnerar fullständig Fitbit-data
           content:
             application/json:
               schema:
