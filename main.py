@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 import requests
 import json
 import os
+import base64
 from datetime import date, timedelta
 from dotenv import load_dotenv
 
@@ -38,8 +39,12 @@ def authorize():
 @app.get("/callback")
 def callback(code: str):
     token_url = "https://api.fitbit.com/oauth2/token"
+    
+    # 👉 FIX: Korrekt Base64-kodning av client_id + secret
+    auth_header = base64.b64encode(f"{FITBIT_CLIENT_ID}:{FITBIT_CLIENT_SECRET}".encode()).decode()
+
     headers = {
-        "Authorization": f"Basic {requests.auth._basic_auth_str(FITBIT_CLIENT_ID, FITBIT_CLIENT_SECRET)}",
+        "Authorization": f"Basic {auth_header}",
         "Content-Type": "application/x-www-form-urlencoded",
     }
     data = {
@@ -80,18 +85,20 @@ def refresh_token_if_needed():
     with open(TOKEN_FILE, "r") as f:
         token_data = json.load(f)
 
-    # Kontrollera om token har gått ut? (Fitbit svarar 401 i så fall)
+    # Testa om token fortfarande är giltig
     headers = {"Authorization": f"Bearer {token_data['access_token']}"}
     test_response = requests.get("https://api.fitbit.com/1/user/-/profile.json", headers=headers)
 
     if test_response.status_code == 200:
         return token_data  # Token funkar fortfarande
 
-    # Annars: Försök förnya
+    # Försök förnya med refresh_token
     print("🔁 Förnyar token...")
     token_url = "https://api.fitbit.com/oauth2/token"
+    auth_header = base64.b64encode(f"{FITBIT_CLIENT_ID}:{FITBIT_CLIENT_SECRET}".encode()).decode()
+
     headers = {
-        "Authorization": f"Basic {requests.auth._basic_auth_str(FITBIT_CLIENT_ID, FITBIT_CLIENT_SECRET)}",
+        "Authorization": f"Basic {auth_header}",
         "Content-Type": "application/x-www-form-urlencoded",
     }
     data = {
