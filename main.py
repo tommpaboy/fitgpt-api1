@@ -114,25 +114,22 @@ def get_fitbit_data(resource_path, start_date, end_date):
     headers = {"Authorization": f"Bearer {access_token}"}
     url = f"https://api.fitbit.com/1/user/-/{resource_path}/date/{start_date}/{end_date}.json"
 
-    # 💡 Vänta 1 sekund för att undvika rate limit
+    # 💡 Vänta 1 sekund för att undvika rate limiting
     time.sleep(1)
 
     try:
         response = requests.get(url, headers=headers)
-
         if response.status_code == 429:
             retry_after = int(response.headers.get("Retry-After", "5"))
-            print(f"⚠️ Rate limit! Väntar {retry_after} sekunder...")
+            print(f"⚠️ Rate limit – väntar {retry_after} sekunder...")
             time.sleep(retry_after)
             response = requests.get(url, headers=headers)
 
         response.raise_for_status()
         data = response.json()
-
         if not data:
             return {"data": {}, "message": "Inget registrerat för denna dag"}
-        return data
-
+        return {"data": data}
     except Exception as e:
         print(f"⚠️ Fel vid hämtning av {resource_path}: {e}")
         return {"data": {}, "error": str(e)}
@@ -152,3 +149,36 @@ def get_heart(date: str):
 @app.get("/data/calories")
 def get_calories(date: str):
     return get_fitbit_data("activities/calories", date, date)
+
+@app.get("/data")
+def get_summary(days: int = 1):
+    today = date.today()
+    start_date = (today - timedelta(days=days - 1)).isoformat()
+    end_date = today.isoformat()
+
+    return {
+        "from": start_date,
+        "to": end_date,
+        "steps": get_fitbit_data("activities/steps", start_date, end_date),
+        "calories": get_fitbit_data("activities/calories", start_date, end_date),
+        "sleep": get_fitbit_data("sleep", start_date, end_date),
+        "heart": get_fitbit_data("activities/heart", start_date, end_date),
+    }
+
+@app.get("/data/extended")
+def get_extended(days: int = 1, target_date: str = None):
+    if target_date:
+        start_date = end_date = target_date
+    else:
+        today = date.today()
+        start_date = (today - timedelta(days=days - 1)).isoformat()
+        end_date = today.isoformat()
+
+    return {
+        "from": start_date,
+        "to": end_date,
+        "steps": get_fitbit_data("activities/steps", start_date, end_date),
+        "calories": get_fitbit_data("activities/calories", start_date, end_date),
+        "sleep": get_fitbit_data("sleep", start_date, end_date),
+        "heart": get_fitbit_data("activities/heart", start_date, end_date),
+    }
