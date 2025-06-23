@@ -1,5 +1,5 @@
 {
-  "openapi": "3.0.1",
+  "openapi": "3.1.0",
   "info": {
     "title": "FitGPT API",
     "description": "API för att hämta och analysera Fitbit-data i GPT, inklusive träning, sömn, puls och kost.",
