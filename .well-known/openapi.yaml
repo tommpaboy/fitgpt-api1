@@ -90,7 +90,7 @@ paths:
 
   /data/extended:
     get:
-      summary: Hämta fullständig Fitbit-data för valfritt antal dagar
+      summary: Hämta fullständig Fitbit-data för ett specifikt datum eller antal dagar
       operationId: getExtendedFitbitData
       parameters:
         - name: days
@@ -102,6 +102,13 @@ paths:
             minimum: 1
             maximum: 30
           description: Antal dagar bakåt att hämta data för (standard: 1)
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: Specifikt datum att hämta data för (ÅÅÅÅ-MM-DD)
       responses:
         "200":
           description: Returnerar detaljerad Fitbit-data
@@ -120,13 +127,15 @@ paths:
                     type: object
                   calories:
                     type: object
+                  active_calories:
+                    type: object
+                  activity_log:
+                    type: object
                   distance:
                     type: object
                   floors:
                     type: object
                   elevation:
-                    type: object
-                  heart:
                     type: object
                   activity_levels:
                     type: object
@@ -139,9 +148,7 @@ paths:
                         type: object
                       very_active:
                         type: object
-                  sleep:
-                    type: object
-                  sleep_stages:
+                  heart:
                     type: object
                   spo2:
                     type: object
@@ -153,11 +160,21 @@ paths:
                     type: object
                   stress:
                     type: object
+                  sleep:
+                    type: object
+                  sleep_stages:
+                    type: object
                   weight:
                     type: object
                   fat:
                     type: object
                   bmi:
+                    type: object
+                  calories_in:
+                    type: object
+                  nutrition:
+                    type: object
+                  water:
                     type: object
                   profile:
                     type: object
