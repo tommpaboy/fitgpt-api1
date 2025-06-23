@@ -1,180 +1,175 @@
-openapi: 3.0.1
-info:
-  title: FitGPT API
-  description: API för att hämta och analysera Fitbit-data i GPT, inklusive träning, sömn, puls och kost.
-  version: "1.0.0"
+openapi_spec = {
+    "openapi": "3.0.0",
+    "info": {
+        "title": "FitGPT API",
+        "version": "1.0.0",
+        "description": "Ett API som ger tillgång till användarens Fitbit-data för hälsa, träning, sömn och kost."
+    },
+    "servers": [
+        {"url": "https://fitgpt-2364.onrender.com"}
+    ],
+    "paths": {
+        "/data/summary": {
+            "get": {
+                "summary": "Sammanfattad hälsodata",
+                "description": "Returnerar steg, kalorier, sömn och puls för angivet datum.",
+                "parameters": [
+                    {
+                        "name": "date",
+                        "in": "query",
+                        "required": False,
+                        "schema": {"type": "string", "format": "date"},
+                        "description": "Datum i format YYYY-MM-DD"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Data returnerad",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "date": "2025-06-22",
+                                    "steps": 8234,
+                                    "calories": 2345,
+                                    "sleep": {
+                                        "total_minutes": 400,
+                                        "efficiency": 92
+                                    },
+                                    "heart": {
+                                        "resting_heart_rate": 61
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/data/steps": {
+            "get": {
+                "summary": "Stegdata",
+                "description": "Returnerar antal steg för valt datum.",
+                "parameters": [
+                    {
+                        "name": "date",
+                        "in": "query",
+                        "required": True,
+                        "schema": {"type": "string", "format": "date"},
+                        "description": "Datum i format YYYY-MM-DD"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Stegdata",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "date": "2025-06-22",
+                                    "steps": 8234
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/data/sleep": {
+            "get": {
+                "summary": "Sömn",
+                "description": "Returnerar sömnmängd och kvalitet för valt datum.",
+                "parameters": [
+                    {
+                        "name": "date",
+                        "in": "query",
+                        "required": True,
+                        "schema": {"type": "string", "format": "date"},
+                        "description": "Datum i format YYYY-MM-DD"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Sömndata",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "date": "2025-06-22",
+                                    "sleep": {
+                                        "total_minutes": 400,
+                                        "efficiency": 92
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/data/heart": {
+            "get": {
+                "summary": "Puls",
+                "description": "Returnerar pulsdata (vilopuls) för ett datum.",
+                "parameters": [
+                    {
+                        "name": "date",
+                        "in": "query",
+                        "required": True,
+                        "schema": {"type": "string", "format": "date"},
+                        "description": "Datum i format YYYY-MM-DD"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Pulsdata",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "date": "2025-06-22",
+                                    "resting_heart_rate": 61
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/data/extended": {
+            "get": {
+                "summary": "Fullständig historik",
+                "description": "Returnerar fullständig datamängd från Fitbit under ett antal dagar.",
+                "parameters": [
+                    {
+                        "name": "days",
+                        "in": "query",
+                        "required": False,
+                        "schema": {"type": "integer", "default": 1},
+                        "description": "Hur många dagar bakåt i tiden som ska inkluderas"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Fullständig Fitbit-data",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "from": "2025-06-21",
+                                    "to": "2025-06-22",
+                                    "steps": {},
+                                    "calories": {},
+                                    "heart": {},
+                                    "sleep": {},
+                                    "nutrition": {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
-servers:
-  - url: https://fitgpt-2364.onrender.com
+import json
+with open("/mnt/data/openapi.json", "w") as f:
+    json.dump(openapi_spec, f, indent=2)
 
-paths:
-  /:
-    get:
-      summary: Kontrollera att API:t är igång
-      operationId: getHome
-      responses:
-        "200":
-          description: FitGPT är igång-meddelande
-          content:
-            text/html:
-              schema:
-                type: string
-
-  /authorize:
-    get:
-      summary: Redirecta användaren till Fitbit OAuth
-      operationId: authorizeUser
-      responses:
-        "302":
-          description: Redirect till Fitbit OAuth-login
-
-  /callback:
-    get:
-      summary: Ta emot auth-code från Fitbit och spara access_token
-      operationId: handleOAuthCallback
-      parameters:
-        - name: code
-          in: query
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Token mottagen eller felmeddelande
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                  token_data:
-                    type: object
-
-  /data:
-    get:
-      summary: Hämta sammanfattad Fitbit-data för valfritt antal dagar
-      operationId: getCombinedFitbitData
-      parameters:
-        - name: days
-          in: query
-          required: false
-          schema:
-            type: integer
-            default: 1
-            minimum: 1
-            maximum: 30
-          description: Antal dagar att hämta data för (standard: 1)
-      responses:
-        "200":
-          description: Returnerar sammanfattad Fitbit-data
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  from:
-                    type: string
-                    format: date
-                  to:
-                    type: string
-                    format: date
-                  steps:
-                    type: object
-                  calories:
-                    type: object
-                  sleep:
-                    type: object
-                  heart:
-                    type: object
-
-  /data/extended:
-    get:
-      summary: Hämta detaljerad Fitbit-data för ett specifikt datum eller ett antal dagar
-      operationId: getExtendedFitbitData
-      parameters:
-        - name: days
-          in: query
-          required: false
-          schema:
-            type: integer
-            default: 1
-            minimum: 1
-            maximum: 30
-          description: Antal dagar att hämta data för (standard: 1)
-        - name: date
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date
-          description: Datum att hämta data för (ÅÅÅÅ-MM-DD)
-      responses:
-        "200":
-          description: Returnerar fullständig Fitbit-data
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  from:
-                    type: string
-                    format: date
-                  to:
-                    type: string
-                    format: date
-                  steps:
-                    type: object
-                  calories:
-                    type: object
-                  active_calories:
-                    type: object
-                  activity_log:
-                    type: object
-                  distance:
-                    type: object
-                  floors:
-                    type: object
-                  elevation:
-                    type: object
-                  activity_levels:
-                    type: object
-                    properties:
-                      sedentary:
-                        type: object
-                      lightly_active:
-                        type: object
-                      fairly_active:
-                        type: object
-                      very_active:
-                        type: object
-                  heart:
-                    type: object
-                  spo2:
-                    type: object
-                  breathing_rate:
-                    type: object
-                  core_temp:
-                    type: object
-                  skin_temp:
-                    type: object
-                  stress:
-                    type: object
-                  sleep:
-                    type: object
-                  sleep_stages:
-                    type: object
-                  weight:
-                    type: object
-                  fat:
-                    type: object
-                  bmi:
-                    type: object
-                  calories_in:
-                    type: object
-                  nutrition:
-                    type: object
-                  water:
-                    type: object
-                  profile:
-                    type: object
+"/mnt/data/openapi.json"
