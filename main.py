@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import requests
@@ -7,28 +7,23 @@ import os
 from datetime import date
 from dotenv import load_dotenv
 
-# Ladda miljövariabler
+# Ladda miljövariabler från .env
 load_dotenv()
 
 app = FastAPI()
 
-# Servera statiska filer för plugin (OpenAI)
+# Montera statisk mapp för GPT-plugin
 app.mount("/.well-known", StaticFiles(directory=".well-known"), name="well-known")
 
-# Konfig
+# Hämta miljövariabler
 FITBIT_CLIENT_ID = os.getenv("FITBIT_CLIENT_ID")
 FITBIT_CLIENT_SECRET = os.getenv("FITBIT_CLIENT_SECRET")
 REDIRECT_URI = os.getenv("REDIRECT_URI", "https://fitgpt-2364.onrender.com/callback")
 TOKEN_FILE = "fitbit_token.json"
 
-
 @app.get("/", response_class=HTMLResponse)
 def home():
-    return """
-        <h1>FitGPT är igång! 🚀</h1>
-        <p><a href='/authorize'>🔐 Logga in med Fitbit</a></p>
-    """
-
+    return "<h1>FitGPT är igång! 🚀</h1>"
 
 @app.get("/authorize")
 def authorize():
@@ -39,7 +34,6 @@ def authorize():
         f"&scope=activity%20nutrition%20sleep%20heartrate%20weight%20location%20profile%20settings%20social%20temperature%20oxygen_saturation%20respiratory_rate"
     )
     return {"auth_url": url}
-
 
 @app.get("/callback")
 def callback(code: str):
@@ -56,24 +50,39 @@ def callback(code: str):
     }
 
     response = requests.post(token_url, headers=headers, data=data)
-    token_data = response.json()
 
-    with open(TOKEN_FILE, "w") as f:
-        json.dump(token_data, f)
-
-    return {"message": "✅ Token mottagen och sparad!", "token_data": token_data}
-
-
-def get_fitbit_data(resource_path, date_str, user_id="BD96M2"):
     try:
-        with open(TOKEN_FILE, "r") as f:
-            token_data = json.load(f)
-    except FileNotFoundError:
+        token_data = response.json()
+    except Exception as e:
+        return {
+            "message": "❌ Kunde inte tolka svaret från Fitbit.",
+            "error": str(e),
+            "raw_response": response.text,
+        }
+
+    if "access_token" in token_data:
+        with open(TOKEN_FILE, "w") as f:
+            json.dump(token_data, f)
+        return {
+            "message": "✅ Token mottagen och sparad!",
+            "token_data": token_data
+        }
+    else:
+        return {
+            "message": "⚠️ Något gick fel vid tokenutbyte.",
+            "token_data": token_data
+        }
+
+def get_fitbit_data(resource_path, date_str, user_id="default"):
+    if not os.path.exists(TOKEN_FILE):
         return {"error": "Ingen token hittades. Logga in först."}
+
+    with open(TOKEN_FILE, "r") as f:
+        token_data = json.load(f)
 
     access_token = token_data.get("access_token")
     if not access_token:
-        return {"error": "Ingen access token tillgänglig"}
+        return {"error": "Token saknas eller ogiltig. Logga in först."}
 
     headers = {"Authorization": f"Bearer {access_token}"}
     url = f"https://api.fitbit.com/1/user/{user_id}/{resource_path}/date/{date_str}/1d.json"
@@ -84,11 +93,10 @@ def get_fitbit_data(resource_path, date_str, user_id="BD96M2"):
 
     return response.json()
 
-
 @app.get("/data")
 def get_combined_data():
     today = date.today().isoformat()
-    user_id = "BD96M2"
+    user_id = "BD96M2"  # Om du vill göra det dynamiskt senare kan vi fixa det
 
     steps = get_fitbit_data("activities/steps", today, user_id)
     calories = get_fitbit_data("activities/calories", today, user_id)
