@@ -2,8 +2,8 @@
   "schema_version": "v1",
   "name_for_human": "FitGPT",
   "name_for_model": "fitgpt",
-  "description_for_human": "Analysera din Fitbit-data och få smart återkoppling.",
-  "description_for_model": "Analyserar användarens Fitbit-data och ger svar baserat på hälsa, sömn, aktivitet och puls.",
+  "description_for_human": "Analysera din Fitbit-data och få smart återkoppling kring träning, sömn, puls och kost.",
+  "description_for_model": "Analysera användarens hälsodata från Fitbit, inklusive sömn, puls, aktivitet, träning och kost. Anropa /data/extended för att hämta aktuell eller historisk data och svara med insikter, trender och motiverande feedback.",
   "auth": {
     "type": "none"
   },
