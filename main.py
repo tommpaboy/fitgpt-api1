@@ -114,79 +114,28 @@ def get_fitbit_data(resource_path, start_date, end_date):
     headers = {"Authorization": f"Bearer {access_token}"}
     url = f"https://api.fitbit.com/1/user/-/{resource_path}/date/{start_date}/{end_date}.json"
 
+    # 💡 Vänta 1 sekund för att undvika rate limit
+    time.sleep(1)
+
     try:
         response = requests.get(url, headers=headers)
+
         if response.status_code == 429:
             retry_after = int(response.headers.get("Retry-After", "5"))
-            print(f"⏳ Rate limit – väntar {retry_after} sekunder...")
+            print(f"⚠️ Rate limit! Väntar {retry_after} sekunder...")
             time.sleep(retry_after)
             response = requests.get(url, headers=headers)
 
         response.raise_for_status()
         data = response.json()
+
         if not data:
             return {"data": {}, "message": "Inget registrerat för denna dag"}
         return data
+
     except Exception as e:
         print(f"⚠️ Fel vid hämtning av {resource_path}: {e}")
         return {"data": {}, "error": str(e)}
-
-@app.get("/data")
-def get_combined_data(days: int = 1):
-    today = date.today()
-    start_date = (today - timedelta(days=days - 1)).isoformat()
-    end_date = today.isoformat()
-
-    return {
-        "from": start_date,
-        "to": end_date,
-        "steps": get_fitbit_data("activities/steps", start_date, end_date),
-        "calories": get_fitbit_data("activities/calories", start_date, end_date),
-        "sleep": get_fitbit_data("sleep", start_date, end_date),
-        "heart": get_fitbit_data("activities/heart", start_date, end_date),
-    }
-
-@app.get("/data/extended")
-def get_extended_data(days: int = 1, target_date: str = None):
-    if target_date:
-        start_date = end_date = target_date
-    else:
-        today = date.today()
-        start_date = (today - timedelta(days=days - 1)).isoformat()
-        end_date = today.isoformat()
-
-    return {
-        "from": start_date,
-        "to": end_date,
-        "steps": get_fitbit_data("activities/steps", start_date, end_date),
-        "calories": get_fitbit_data("activities/calories", start_date, end_date),
-        "active_calories": get_fitbit_data("activities/activityCalories", start_date, end_date),
-        "activity_log": get_fitbit_data("activities", start_date, end_date),
-        "distance": get_fitbit_data("activities/distance", start_date, end_date),
-        "floors": get_fitbit_data("activities/floors", start_date, end_date),
-        "elevation": get_fitbit_data("activities/elevation", start_date, end_date),
-        "activity_levels": {
-            "sedentary": get_fitbit_data("activities/minutesSedentary", start_date, end_date),
-            "lightly_active": get_fitbit_data("activities/minutesLightlyActive", start_date, end_date),
-            "fairly_active": get_fitbit_data("activities/minutesFairlyActive", start_date, end_date),
-            "very_active": get_fitbit_data("activities/minutesVeryActive", start_date, end_date),
-        },
-        "heart": get_fitbit_data("activities/heart", start_date, end_date),
-        "spo2": get_fitbit_data("spo2", start_date, end_date),
-        "breathing_rate": get_fitbit_data("br", start_date, end_date),
-        "core_temp": get_fitbit_data("temp/core", start_date, end_date),
-        "skin_temp": get_fitbit_data("temp/skin", start_date, end_date),
-        "stress": get_fitbit_data("body/stressManagement", start_date, end_date),
-        "sleep": get_fitbit_data("sleep", start_date, end_date),
-        "sleep_stages": get_fitbit_data("sleep/stages", start_date, end_date),
-        "weight": get_fitbit_data("body/weight", start_date, end_date),
-        "fat": get_fitbit_data("body/fat", start_date, end_date),
-        "bmi": get_fitbit_data("body/bmi", start_date, end_date),
-        "calories_in": get_fitbit_data("foods/log/caloriesIn", start_date, end_date),
-        "nutrition": get_fitbit_data("foods/log", start_date, end_date),
-        "water": get_fitbit_data("foods/log/water", start_date, end_date),
-        "profile": get_fitbit_data("profile.json", start_date, end_date),
-    }
 
 @app.get("/data/steps")
 def get_steps(date: str):
@@ -196,10 +145,10 @@ def get_steps(date: str):
 def get_sleep(date: str):
     return get_fitbit_data("sleep", date, date)
 
-@app.get("/data/calories")
-def get_calories(date: str):
-    return get_fitbit_data("activities/calories", date, date)
-
 @app.get("/data/heart")
 def get_heart(date: str):
     return get_fitbit_data("activities/heart", date, date)
+
+@app.get("/data/calories")
+def get_calories(date: str):
+    return get_fitbit_data("activities/calories", date, date)
