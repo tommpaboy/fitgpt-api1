@@ -19,7 +19,7 @@
           {
             "name": "days",
             "in": "query",
-            "required": false,
+            "required": False,
             "schema": {
               "type": "integer",
               "default": 1,
@@ -59,7 +59,7 @@
           {
             "name": "days",
             "in": "query",
-            "required": false,
+            "required": False,
             "schema": {
               "type": "integer",
               "default": 1,
@@ -70,7 +70,7 @@
           {
             "name": "target_date",
             "in": "query",
-            "required": false,
+            "required": False,
             "schema": {
               "type": "string",
               "format": "date"
@@ -100,7 +100,7 @@
           {
             "name": "date",
             "in": "query",
-            "required": true,
+            "required": True,
             "schema": { "type": "string", "format": "date" }
           }
         ],
@@ -122,7 +122,7 @@
           {
             "name": "date",
             "in": "query",
-            "required": true,
+            "required": True,
             "schema": { "type": "string", "format": "date" }
           }
         ],
@@ -144,7 +144,7 @@
           {
             "name": "date",
             "in": "query",
-            "required": true,
+            "required": True,
             "schema": { "type": "string", "format": "date" }
           }
         ],
@@ -166,7 +166,7 @@
           {
             "name": "date",
             "in": "query",
-            "required": true,
+            "required": True,
             "schema": { "type": "string", "format": "date" }
           }
         ],
