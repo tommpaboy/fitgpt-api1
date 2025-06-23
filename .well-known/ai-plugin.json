@@ -9,7 +9,7 @@
   },
   "api": {
     "type": "openapi",
-    "url": "https://fitgpt-2364.onrender.com/.well-known/openapi.json",
+    "url": "https://fitgpt-2364.onrender.com/.well-known/openapi.yaml",
     "is_user_authenticated": false
   },
   "logo_url": "https://fitgpt-2364.onrender.com/logo.png",
