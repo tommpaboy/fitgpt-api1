@@ -144,9 +144,9 @@ def get_combined_data(days: int = 1):
     }
 
 @app.get("/data/extended")
-def get_extended_data(days: int = 1, date: str = None):
-    if date:
-        start_date = end_date = date
+def get_extended_data(days: int = 1, target_date: str = None):  # <-- FIX: renamed `date` to `target_date`
+    if target_date:
+        start_date = end_date = target_date
     else:
         today = date.today()
         start_date = (today - timedelta(days=days - 1)).isoformat()
