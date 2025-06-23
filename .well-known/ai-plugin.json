@@ -3,7 +3,7 @@
   "name_for_human": "FitGPT",
   "name_for_model": "fitgpt",
   "description_for_human": "Få personlig feedback baserat på din Fitbit-data – träning, sömn, puls och mer.",
-  "description_for_model": "Analysera användarens Fitbit-data (steg, sömn, puls, kalorier) och ge motiverande, personlig återkoppling. Anropa rätt endpoint baserat på datumet och vilken typ av data som efterfrågas. Kombinera gärna data från flera endpoints för helhetsanalys.",
+  "description_for_model": "Analysera användarens Fitbit-data (t.ex. steg, puls, sömn) och ge motiverande, personlig återkoppling. Använd /data för sammanfattning eller /data/extended för detaljer. Ställ gärna följdfrågor.",
   "auth": {
     "type": "none"
   },
