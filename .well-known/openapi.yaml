@@ -1,8 +1,11 @@
 openapi: 3.0.1
 info:
   title: FitGPT API
-  description: API för att hämta och analysera Fitbit-data, inklusive träning, sömn, puls och kalorier.
-  version: "1.0.0"
+  description: |
+    API för att hämta och analysera Fitbit-data – steg, kalorier, sömn, puls,
+    vikt, HRV och loggade träningspass.  
+    Använd `/data` för en snabb sammanfattning och `/data/extended` för djupare insikt.
+  version: "1.0.1"
 
 servers:
   - url: https://fitgpt-2364.onrender.com
@@ -44,16 +47,23 @@ paths:
             default: 1
             minimum: 1
             maximum: 30
+          description: Antal dagar att hämta data för om `target_date` inte anges
         - name: target_date
           in: query
           required: false
           schema:
             type: string
             format: date
-          description: Specifikt datum att hämta data för (format: YYYY-MM-DD)
+          description: |
+            Specifikt datum att hämta data för (format: YYYY-MM-DD).  
+            Om anges åsidosätts `days`.
       responses:
         '200':
-          description: Detaljerad Fitbit-data
+          description: |
+            Detaljerad Fitbit-data:
+            • steg, kalorier, sömn, puls  
+            • vikt, HRV  
+            • senaste träningspass (activity_logs)
           content:
             application/json:
               schema:
@@ -71,6 +81,7 @@ paths:
           schema:
             type: string
             format: date
+          description: Datum (YYYY-MM-DD)
       responses:
         '200':
           description: Stegdata från Fitbit
@@ -78,6 +89,7 @@ paths:
             application/json:
               schema:
                 type: object
+      x-openai-isConsequential: false
 
   /data/sleep:
     get:
@@ -90,6 +102,7 @@ paths:
           schema:
             type: string
             format: date
+          description: Datum (YYYY-MM-DD)
       responses:
         '200':
           description: Sömndata från Fitbit
@@ -97,6 +110,7 @@ paths:
             application/json:
               schema:
                 type: object
+      x-openai-isConsequential: false
 
   /data/heart:
     get:
@@ -109,6 +123,7 @@ paths:
           schema:
             type: string
             format: date
+          description: Datum (YYYY-MM-DD)
       responses:
         '200':
           description: Hjärtfrekvensdata från Fitbit
@@ -116,6 +131,7 @@ paths:
             application/json:
               schema:
                 type: object
+      x-openai-isConsequential: false
 
   /data/calories:
     get:
@@ -128,6 +144,7 @@ paths:
           schema:
             type: string
             format: date
+          description: Datum (YYYY-MM-DD)
       responses:
         '200':
           description: Kaloridata från Fitbit
@@ -135,3 +152,4 @@ paths:
             application/json:
               schema:
                 type: object
+      x-openai-isConsequential: false
