@@ -2,8 +2,8 @@
   "schema_version": "v1",
   "name_for_human": "FitGPT",
   "name_for_model": "fitgpt",
-  "description_for_human": "Få personlig feedback baserat på din Fitbit-data – träning, sömn, puls och mer.",
-  "description_for_model": "Analysera användarens Fitbit-data (t.ex. steg, puls, sömn) och ge motiverande, personlig återkoppling. Använd /data för sammanfattning eller /data/extended för detaljer. Ställ gärna följdfrågor.",
+  "description_for_human": "Personlig coachning baserad på din Fitbit-data – steg, kalorier, sömn, puls, vikt, HRV och träningspass.",
+  "description_for_model": "Analysera användarens Fitbit-data (steps, calories, sleep, heart-rate, weight, HRV, activity logs) och ge motiverande, personlig återkoppling. Hämta data via:\n• /data – kort sammanfattning för valfritt intervall\n• /data/extended – detaljerad daglig data inkl. vikt, HRV och senaste träningspass.\nStäll följdfrågor vid behov för att förtydliga mål och ge konkreta råd.",
   "auth": {
     "type": "none"
   },
