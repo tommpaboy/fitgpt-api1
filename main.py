@@ -114,8 +114,7 @@ def get_fitbit_data(resource_path, start_date, end_date):
     headers = {"Authorization": f"Bearer {access_token}"}
     url = f"https://api.fitbit.com/1/user/-/{resource_path}/date/{start_date}/{end_date}.json"
 
-    # 💡 Vänta 1 sekund för att undvika rate limiting
-    time.sleep(1)
+    time.sleep(1)  # 💡 Undvik rate limiting
 
     try:
         response = requests.get(url, headers=headers)
@@ -133,6 +132,23 @@ def get_fitbit_data(resource_path, start_date, end_date):
     except Exception as e:
         print(f"⚠️ Fel vid hämtning av {resource_path}: {e}")
         return {"data": {}, "error": str(e)}
+
+def get_activity_logs(date_str):
+    token_data = refresh_token_if_needed()
+    if not token_data:
+        return []
+
+    access_token = token_data.get("access_token")
+    headers = {"Authorization": f"Bearer {access_token}"}
+    url = f"https://api.fitbit.com/1/user/-/activities/list.json?beforeDate={date_str}&sort=desc&limit=10&offset=0"
+
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        return response.json().get("activities", [])
+    except Exception as e:
+        print(f"⚠️ Fel vid hämtning av loggade aktiviteter: {e}")
+        return []
 
 @app.get("/data/steps")
 def get_steps(date: str):
@@ -181,4 +197,7 @@ def get_extended(days: int = 1, target_date: str = None):
         "calories": get_fitbit_data("activities/calories", start_date, end_date),
         "sleep": get_fitbit_data("sleep", start_date, end_date),
         "heart": get_fitbit_data("activities/heart", start_date, end_date),
+        "weight": get_fitbit_data("body/log/weight", start_date, end_date),
+        "activity_logs": get_activity_logs(end_date),
+        "hrv": get_fitbit_data("hrv", start_date, end_date),
     }
