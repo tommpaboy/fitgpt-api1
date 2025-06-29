@@ -1,4 +1,5 @@
-requests
-python-dotenv
 fastapi
 uvicorn
+requests
+python-dotenv
+google-cloud-firestore>=2.13.0
