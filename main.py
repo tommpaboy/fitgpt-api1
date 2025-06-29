@@ -96,6 +96,7 @@ def set_user_profile(profile: dict):
 # ---------------------------------------------------------------------
 @app.post("/log/meal")
 def log_meal(entry: MealLog):
+    print("🔎 Inkommande måltid:", entry.dict())      # ← DEBUG-RAD
     doc_id = f"{entry.date}-{entry.meal.lower()}"
     db.collection("meals").document(doc_id).set(entry.dict())
     return {"status": "OK", "saved": entry.dict()}
