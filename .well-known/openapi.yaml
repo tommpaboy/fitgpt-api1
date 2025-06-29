@@ -3,9 +3,13 @@ info:
   title: FitGPT API
   description: |
     API för att hämta och analysera Fitbit-data – steg, kalorier, sömn, puls,
-    vikt, HRV och loggade träningspass.  
-    Använd `/data` för en snabb sammanfattning och `/data/extended` för djupare insikt.
-  version: "1.0.1"
+    vikt, HRV och loggade träningspass, samt logga egna måltider och pass.
+    
+    • `/data`            – snabb sammanfattning  
+    • `/data/extended`   – djupare insikt  
+    • `/log/meal`        – logga / hämta måltider  
+    • `/log/workout`     – logga / hämta träningspass
+  version: "1.1.0"
 
 servers:
   - url: https://fitgpt-2364.onrender.com
@@ -26,12 +30,11 @@ paths:
             maximum: 30
           description: Antal dagar att hämta data för (standard: 1)
       responses:
-        '200':
+        "200":
           description: Sammanfattad Fitbit-data (steg, kalorier, sömn, puls)
           content:
             application/json:
-              schema:
-                type: object
+              schema: { type: object }
       x-openai-isConsequential: false
 
   /data/extended:
@@ -41,7 +44,6 @@ paths:
       parameters:
         - name: days
           in: query
-          required: false
           schema:
             type: integer
             default: 1
@@ -50,15 +52,14 @@ paths:
           description: Antal dagar att hämta data för om `target_date` inte anges
         - name: target_date
           in: query
-          required: false
           schema:
             type: string
             format: date
           description: |
-            Specifikt datum att hämta data för (format: YYYY-MM-DD).  
+            Specifikt datum att hämta data för (YYYY-MM-DD).  
             Om anges åsidosätts `days`.
       responses:
-        '200':
+        "200":
           description: |
             Detaljerad Fitbit-data:
             • steg, kalorier, sömn, puls  
@@ -66,8 +67,7 @@ paths:
             • senaste träningspass (activity_logs)
           content:
             application/json:
-              schema:
-                type: object
+              schema: { type: object }
       x-openai-isConsequential: false
 
   /data/steps:
@@ -83,12 +83,11 @@ paths:
             format: date
           description: Datum (YYYY-MM-DD)
       responses:
-        '200':
+        "200":
           description: Stegdata från Fitbit
           content:
             application/json:
-              schema:
-                type: object
+              schema: { type: object }
       x-openai-isConsequential: false
 
   /data/sleep:
@@ -104,12 +103,11 @@ paths:
             format: date
           description: Datum (YYYY-MM-DD)
       responses:
-        '200':
+        "200":
           description: Sömndata från Fitbit
           content:
             application/json:
-              schema:
-                type: object
+              schema: { type: object }
       x-openai-isConsequential: false
 
   /data/heart:
@@ -125,12 +123,11 @@ paths:
             format: date
           description: Datum (YYYY-MM-DD)
       responses:
-        '200':
+        "200":
           description: Hjärtfrekvensdata från Fitbit
           content:
             application/json:
-              schema:
-                type: object
+              schema: { type: object }
       x-openai-isConsequential: false
 
   /data/calories:
@@ -146,10 +143,123 @@ paths:
             format: date
           description: Datum (YYYY-MM-DD)
       responses:
-        '200':
+        "200":
           description: Kaloridata från Fitbit
           content:
             application/json:
-              schema:
-                type: object
+              schema: { type: object }
       x-openai-isConsequential: false
+
+  # ---------- Nya loggendpoints ---------------------------------------
+
+  /log/meal:
+    post:
+      summary: Logga en måltid
+      operationId: logMeal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MealLog"
+      responses:
+        "200":
+          description: Bekräftelse på sparad måltid
+          content:
+            application/json:
+              schema: { type: object }
+      x-openai-isConsequential: false
+
+    get:
+      summary: Hämta alla måltider för ett datum
+      operationId: getMeals
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Datum (YYYY-MM-DD)
+      responses:
+        "200":
+          description: Lista av måltider
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MealLog"
+      x-openai-isConsequential: false
+
+  /log/workout:
+    post:
+      summary: Logga ett träningspass
+      operationId: logWorkout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkoutLog"
+      responses:
+        "200":
+          description: Bekräftelse på sparat träningspass
+          content:
+            application/json:
+              schema: { type: object }
+      x-openai-isConsequential: false
+
+    get:
+      summary: Hämta träningspass för ett datum
+      operationId: getWorkouts
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Datum (YYYY-MM-DD)
+      responses:
+        "200":
+          description: Lista av träningspass
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkoutLog"
+      x-openai-isConsequential: false
+
+components:
+  schemas:
+    MealLog:
+      type: object
+      required: [date, meal, items]
+      properties:
+        date:
+          type: string
+          format: date
+          description: Datum (YYYY-MM-DD)
+        meal:
+          type: string
+          description: Typ av mål (t.ex. Frukost, Lunch, Middag, Snacks)
+        items:
+          type: string
+          description: Beskrivning av livsmedel och mängder
+
+    WorkoutLog:
+      type: object
+      required: [date, type, details]
+      properties:
+        date:
+          type: string
+          format: date
+          description: Datum (YYYY-MM-DD)
+        type:
+          type: string
+          description: Träningstyp (Styrka, Badminton, Cardio …)
+        details:
+          type: string
+          description: Exempel – “Bänkpress 80 kg × 15”
