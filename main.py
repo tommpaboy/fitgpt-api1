@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from pydantic import BaseModel
-from typing import List                      # 🆕
+from typing import List, Optional              # 🆕 Optional
 import requests, json, os, base64, time
 from datetime import date, timedelta
 from dotenv import load_dotenv
@@ -22,7 +22,7 @@ FITBIT_CLIENT_SECRET = os.getenv("FITBIT_CLIENT_SECRET")
 REDIRECT_URI         = os.getenv("REDIRECT_URI", "https://fitgpt-2364.onrender.com/callback")
 TOKEN_FILE           = "fitbit_token.json"
 
-# Användarprofil på disk (lokal JSON) ----------------------------------
+# Användarprofil (lokal JSON) ------------------------------------------
 PROFILE_FILE = "user_profile.json"
 
 def load_profile() -> dict:
@@ -61,14 +61,15 @@ db = firestore.Client(credentials=firebase_creds, project=cred_info.get("project
 # 🎯 Datamodeller för loggning
 # ---------------------------------------------------------------------
 class MealLog(BaseModel):
-    date: str           # "2025-06-29"
-    meal: str           # "Frukost", "Lunch", ...
-    items: str          # "5 ägg, 2 knäckemackor"
+    date: str                     # "2025-06-29"
+    meal: str                     # "Frukost", "Lunch", ...
+    items: str                    # "5 ägg, 2 knäckemackor"
+    estimated_calories: Optional[int] = None  # 🆕
 
 class WorkoutLog(BaseModel):
     date: str
-    type: str           # "Löpning", "Styrka" ...
-    details: str        # "Marklyft 100 kg x 3"
+    type: str                     # "Löpning", "Styrka", ...
+    details: str                  # "Marklyft 100 kg x 3"
 
 # ---------------------------------------------------------------------
 # Routes – UI och profil
