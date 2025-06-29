@@ -1,15 +1,15 @@
 openapi: 3.0.1
 info:
   title: FitGPT API
+  version: "1.1.3"
   description: |
     API för att hämta och analysera Fitbit-data – steg, kalorier, sömn, puls,
     vikt, HRV och loggade träningspass, samt logga egna måltider och pass.
-    
+
     • `/data`            – snabb sammanfattning  
     • `/data/extended`   – djupare insikt  
     • `/log/meal`        – logga / hämta måltider  
     • `/log/workout`     – logga / hämta träningspass
-  version: "1.1.2"
 
 servers:
   - url: https://fitgpt-2364.onrender.com
@@ -22,14 +22,19 @@ paths:
       parameters:
         - name: days
           in: query
-          schema: { type: integer, default: 1, minimum: 1, maximum: 30 }
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+            maximum: 30
           description: Antal dagar att hämta data för (standard: 1)
       responses:
         "200":
           description: Sammanfattad Fitbit-data (steg, kalorier, sömn, puls)
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
       x-openai-isConsequential: false
 
   /data/extended:
@@ -39,11 +44,17 @@ paths:
       parameters:
         - name: days
           in: query
-          schema: { type: integer, default: 1, minimum: 1, maximum: 30 }
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+            maximum: 30
           description: Antal dagar om `target_date` inte anges
         - name: target_date
           in: query
-          schema: { type: string, format: date }
+          schema:
+            type: string
+            format: date
           description: Specifikt datum (YYYY-MM-DD) – åsidosätter `days`
       responses:
         "200":
@@ -54,7 +65,8 @@ paths:
             • senaste träningspass (activity_logs)
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
       x-openai-isConsequential: false
 
   /data/steps:
@@ -65,10 +77,17 @@ paths:
         - name: date
           in: query
           required: true
-          schema: { type: string, format: date }
+          schema:
+            type: string
+            format: date
           description: Datum (YYYY-MM-DD)
       responses:
-        "200": { description: Stegdata, content: { application/json: { schema: { type: object } } } }
+        "200":
+          description: Stegdata
+          content:
+            application/json:
+              schema:
+                type: object
       x-openai-isConsequential: false
 
   /data/sleep:
@@ -79,10 +98,17 @@ paths:
         - name: date
           in: query
           required: true
-          schema: { type: string, format: date }
+          schema:
+            type: string
+            format: date
           description: Datum (YYYY-MM-DD)
       responses:
-        "200": { description: Sömndata, content: { application/json: { schema: { type: object } } } }
+        "200":
+          description: Sömndata
+          content:
+            application/json:
+              schema:
+                type: object
       x-openai-isConsequential: false
 
   /data/heart:
@@ -93,10 +119,17 @@ paths:
         - name: date
           in: query
           required: true
-          schema: { type: string, format: date }
+          schema:
+            type: string
+            format: date
           description: Datum (YYYY-MM-DD)
       responses:
-        "200": { description: Hjärtfrekvensdata, content: { application/json: { schema: { type: object } } } }
+        "200":
+          description: Hjärtfrekvensdata
+          content:
+            application/json:
+              schema:
+                type: object
       x-openai-isConsequential: false
 
   /data/calories:
@@ -107,10 +140,17 @@ paths:
         - name: date
           in: query
           required: true
-          schema: { type: string, format: date }
+          schema:
+            type: string
+            format: date
           description: Datum (YYYY-MM-DD)
       responses:
-        "200": { description: Kaloridata, content: { application/json: { schema: { type: object } } } }
+        "200":
+          description: Kaloridata
+          content:
+            application/json:
+              schema:
+                type: object
       x-openai-isConsequential: false
 
   /log/meal:
@@ -130,7 +170,8 @@ paths:
           description: Bekräftelse på sparade måltider
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
       x-openai-isConsequential: false
 
     get:
@@ -140,7 +181,9 @@ paths:
         - name: date
           in: query
           required: true
-          schema: { type: string, format: date }
+          schema:
+            type: string
+            format: date
           description: Datum (YYYY-MM-DD)
       responses:
         "200":
@@ -170,7 +213,8 @@ paths:
           description: Bekräftelse på sparade träningspass
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
       x-openai-isConsequential: false
 
     get:
@@ -180,7 +224,9 @@ paths:
         - name: date
           in: query
           required: true
-          schema: { type: string, format: date }
+          schema:
+            type: string
+            format: date
           description: Datum (YYYY-MM-DD)
       responses:
         "200":
@@ -209,7 +255,7 @@ components:
         items:
           type: string
           description: Livsmedel och mängder
-        estimated_calories:          # 🆕 Tillägg
+        estimated_calories:
           type: integer
           description: Uppskattat kaloriinnehåll (frivilligt, hellre något högre)
 
