@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from pydantic import BaseModel
+from typing import List                      # 🆕
 import requests, json, os, base64, time
 from datetime import date, timedelta
 from dotenv import load_dotenv
@@ -43,7 +44,7 @@ def save_profile(profile: dict):
         raise
 
 # ---------------------------------------------------------------------
-# 🔗 Firestore-klient (läser service-kontot från env-variabel)
+# 🔗 Firestore-klient
 # ---------------------------------------------------------------------
 from google.oauth2 import service_account
 from google.cloud import firestore
@@ -61,13 +62,13 @@ db = firestore.Client(credentials=firebase_creds, project=cred_info.get("project
 # ---------------------------------------------------------------------
 class MealLog(BaseModel):
     date: str           # "2025-06-29"
-    meal: str           # "Lunch", "Middag", "Kvällsmål" ...
-    items: str          # "3 ägg, 2 knäckemackor"
+    meal: str           # "Frukost", "Lunch", ...
+    items: str          # "5 ägg, 2 knäckemackor"
 
 class WorkoutLog(BaseModel):
-    date: str           # "2025-06-29"
-    type: str           # "Styrka", "Badminton", ...
-    details: str        # "Bänkpress 80 kg x 15"
+    date: str
+    type: str           # "Löpning", "Styrka" ...
+    details: str        # "Marklyft 100 kg x 3"
 
 # ---------------------------------------------------------------------
 # Routes – UI och profil
@@ -92,14 +93,17 @@ def set_user_profile(profile: dict):
     return {"message": "✅ Profil sparad!", "profile": profile}
 
 # ---------------------------------------------------------------------
-# 🔥 Firestore-loggar – måltider
+# 🔥 Firestore-loggar – måltider (lista)
 # ---------------------------------------------------------------------
 @app.post("/log/meal")
-def log_meal(entry: MealLog):
-    print("🔎 Inkommande måltid:", entry.dict())      # ← DEBUG-RAD
-    doc_id = f"{entry.date}-{entry.meal.lower()}"
-    db.collection("meals").document(doc_id).set(entry.dict())
-    return {"status": "OK", "saved": entry.dict()}
+def log_meals(entries: List[MealLog]):
+    saved = []
+    for entry in entries:
+        print("🔎 Måltid:", entry.dict())
+        doc_id = f"{entry.date}-{entry.meal.lower()}"
+        db.collection("meals").document(doc_id).set(entry.dict())
+        saved.append(entry.dict())
+    return {"status": "OK", "saved": saved}
 
 @app.get("/log/meal")
 def get_meals(date: str):
@@ -107,13 +111,16 @@ def get_meals(date: str):
     return [d.to_dict() for d in docs]
 
 # ---------------------------------------------------------------------
-# 🔥 Firestore-loggar – träningspass
+# 🔥 Firestore-loggar – träningspass (lista)
 # ---------------------------------------------------------------------
 @app.post("/log/workout")
-def log_workout(entry: WorkoutLog):
-    # Auto-ID → Firestore skapar ett unikt dokument-id
-    db.collection("workouts").add(entry.dict())
-    return {"status": "OK", "saved": entry.dict()}
+def log_workouts(entries: List[WorkoutLog]):
+    saved = []
+    for entry in entries:
+        print("🔎 Träningspass:", entry.dict())
+        db.collection("workouts").add(entry.dict())  # auto-id
+        saved.append(entry.dict())
+    return {"status": "OK", "saved": saved}
 
 @app.get("/log/workout")
 def get_workouts(date: str):
@@ -121,7 +128,7 @@ def get_workouts(date: str):
     return [d.to_dict() for d in docs]
 
 # ---------------------------------------------------------------------
-# 💾 Dina befintliga FITBIT-endpoints (oförändrade)
+# 💾 FITBIT-endpoints (oförändrade)
 # ---------------------------------------------------------------------
 @app.get("/authorize")
 def authorize():
@@ -162,6 +169,9 @@ def callback(code: str):
     else:
         return {"message": "⚠️ Något gick fel vid tokenutbyte.", "token_data": token_data}
 
+# ---------------------------------------------------------------------
+# Token-hantering & Fitbit-helpers
+# ---------------------------------------------------------------------
 def refresh_token_if_needed():
     if not os.path.exists(TOKEN_FILE):
         return None
