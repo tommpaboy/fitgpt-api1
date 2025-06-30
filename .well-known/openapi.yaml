@@ -3,19 +3,18 @@ info:
   title: FitGPT API
   version: "1.1.6"
   description: |
-    API för Fitbit-data **plus** manuellt loggade måltider & pass.
+    API för Fitbit-data plus manuellt loggade måltider och träningspass.
 
-    • **/daily-summary** – allt för ett datum i _ett_ anrop  
-    • **/data**          – kort Fitbit-summering över X dagar  
-    • **/data/extended** – detaljerad Fitbit-data  
-    • **/log/meal**      – logga / hämta måltider  
-    • **/log/workout**   – logga / hämta träningspass
+    Viktiga end-points
+      • /daily-summary  – allt för ett datum i ett anrop
+      • /data           – kort Fitbit-summering över X dagar
+      • /data/extended  – detaljerad Fitbit-data
+      • /log/meal       – logga eller hämta måltider
+      • /log/workout    – logga eller hämta träningspass
 servers:
   - url: https://fitgpt-2364.onrender.com
 
 paths:
-
-  ## ────────────── 1. ONE-STOP DAGSDATA ──────────────
   /daily-summary:
     get:
       summary: Samlad dagsdata (Fitbit + Firestore)
@@ -23,99 +22,160 @@ paths:
       parameters:
         - name: date
           in: query
-          description: Datum (YYYY-MM-DD). Default = idag.
           required: false
-          schema: { type: string, format: date }
+          schema:
+            type: string
+            format: date
+          description: Datum i formatet YYYY-MM-DD (lämnas tomt för idag)
       responses:
         "200":
-          description: Fitbit-data, måltider & träningspass
-          content: { application/json: { schema: { type: object } } }
-      x-openai-isConsequential: false   # GPT gör högst 1 anrop
+          description: Dagsdata med Fitbit, måltider och träningspass
+          content:
+            application/json:
+              schema:
+                type: object
+      x-openai-isConsequential: false
 
-  ## ────────────── 2. FITBIT-SAMMANFATTNINGAR ──────────────
   /data:
     get:
-      summary: Kort Fitbit-sammanfattning
+      summary: Hämta sammanfattad Fitbit-data
       operationId: getCombinedData
       parameters:
         - name: days
           in: query
-          description: Antal dagar (1-30), default 1
-          schema: { type: integer, minimum: 1, maximum: 30, default: 1 }
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+            maximum: 30
+          description: Antal dagar (standard: 1)
       responses:
-        "200": { description: OK, content: { application/json: { schema: { type: object } } } }
+        "200":
+          description: Sammanfattad Fitbit-data
+          content:
+            application/json:
+              schema:
+                type: object
       x-openai-isConsequential: false
 
   /data/extended:
     get:
-      summary: Detaljerad Fitbit-data
+      summary: Hämta detaljerad Fitbit-data
       operationId: getExtendedData
       parameters:
         - name: days
           in: query
-          description: Används om `target_date` saknas
-          schema: { type: integer, minimum: 1, maximum: 30, default: 1 }
-        - name: target_date               # måste matcha main.py
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+            maximum: 30
+          description: Antal dagar om target_date inte anges
+        - name: target_date
           in: query
-          description: Datum (YYYY-MM-DD) – åsidosätter `days`
-          schema: { type: string, format: date }
+          required: false
+          schema:
+            type: string
+            format: date
+          description: Datum i formatet YYYY-MM-DD (åsidosätter days)
       responses:
-        "200": { description: OK, content: { application/json: { schema: { type: object } } } }
+        "200":
+          description: Detaljerad Fitbit-data inklusive activity_logs
+          content:
+            application/json:
+              schema:
+                type: object
       x-openai-isConsequential: false
 
-  ## ────────────── 3. SMALA FITBIT-ENDPOINTS (valfria) ──────────────
   /data/steps:
     get:
-      summary: Stegdata för ett datum
+      summary: Hämta stegdata för ett datum
       operationId: getSteps
       parameters:
         - name: date
           in: query
           required: true
-          schema: { type: string, format: date }
-      responses: { "200": { description: OK, content: { application/json: { schema: { type: object } } } } }
+          schema:
+            type: string
+            format: date
+          description: Datum YYYY-MM-DD
+      responses:
+        "200":
+          description: Stegdata
+          content:
+            application/json:
+              schema:
+                type: object
       x-openai-isConsequential: false
 
   /data/sleep:
     get:
-      summary: Sömndata för ett datum
+      summary: Hämta sömndata för ett datum
       operationId: getSleep
       parameters:
         - name: date
           in: query
           required: true
-          schema: { type: string, format: date }
-      responses: { "200": { description: OK, content: { application/json: { schema: { type: object } } } } }
+          schema:
+            type: string
+            format: date
+          description: Datum YYYY-MM-DD
+      responses:
+        "200":
+          description: Sömndata
+          content:
+            application/json:
+              schema:
+                type: object
       x-openai-isConsequential: false
 
   /data/heart:
     get:
-      summary: Hjärtfrekvensdata för ett datum
+      summary: Hämta hjärtfrekvensdata för ett datum
       operationId: getHeart
       parameters:
         - name: date
           in: query
           required: true
-          schema: { type: string, format: date }
-      responses: { "200": { description: OK, content: { application/json: { schema: { type: object } } } } }
+          schema:
+            type: string
+            format: date
+          description: Datum YYYY-MM-DD
+      responses:
+        "200":
+          description: Hjärtfrekvensdata
+          content:
+            application/json:
+              schema:
+                type: object
       x-openai-isConsequential: false
 
   /data/calories:
     get:
-      summary: Kaloridata för ett datum
+      summary: Hämta kaloridata för ett datum
       operationId: getCalories
       parameters:
         - name: date
           in: query
           required: true
-          schema: { type: string, format: date }
-      responses: { "200": { description: OK, content: { application/json: { schema: { type: object } } } } }
+          schema:
+            type: string
+            format: date
+          description: Datum YYYY-MM-DD
+      responses:
+        "200":
+          description: Kaloridata
+          content:
+            application/json:
+              schema:
+                type: object
       x-openai-isConsequential: false
 
-  ## ────────────── 4. LOGGA & HÄMTA MÅLTIDER ──────────────
   /log/meal:
     post:
-      summary: Logga måltid(er)
+      summary: Logga måltider
       operationId: logMeals
       requestBody:
         required: true
@@ -123,11 +183,18 @@ paths:
           application/json:
             schema:
               oneOf:
-                - $ref: "#/components/schemas/MealLog"          # enstaka
-                - type: array                                   # lista
-                  items: { $ref: "#/components/schemas/MealLog" }
+                - $ref: "#/components/schemas/MealLog"
+                - type: array
+                  items:
+                    $ref: "#/components/schemas/MealLog"
       responses:
-        "200": { description: Sparat, content: { application/json: { schema: { type: object } } } }
+        "200":
+          description: Bekräftelse på sparade måltider
+          content:
+            application/json:
+              schema:
+                type: object
+      x-openai-isConsequential: false
 
     get:
       summary: Hämta måltider för ett datum
@@ -136,12 +203,21 @@ paths:
         - name: date
           in: query
           required: true
-          schema: { type: string, format: date }
+          schema:
+            type: string
+            format: date
+          description: Datum YYYY-MM-DD
       responses:
-        "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/MealLog" } } } } }
+        "200":
+          description: Lista av måltider
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MealLog"
       x-openai-isConsequential: false
 
-  ## ────────────── 5. LOGGA & HÄMTA TRÄNINGSPASS ──────────────
   /log/workout:
     post:
       summary: Logga träningspass
@@ -154,9 +230,16 @@ paths:
               oneOf:
                 - $ref: "#/components/schemas/WorkoutLog"
                 - type: array
-                  items: { $ref: "#/components/schemas/WorkoutLog" }
+                  items:
+                    $ref: "#/components/schemas/WorkoutLog"
       responses:
-        "200": { description: Sparat, content: { application/json: { schema: { type: object } } } }
+        "200":
+          description: Bekräftelse på sparade pass
+          content:
+            application/json:
+              schema:
+                type: object
+      x-openai-isConsequential: false
 
     get:
       summary: Hämta träningspass för ett datum
@@ -165,29 +248,46 @@ paths:
         - name: date
           in: query
           required: true
-          schema: { type: string, format: date }
+          schema:
+            type: string
+            format: date
+          description: Datum YYYY-MM-DD
       responses:
-        "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/WorkoutLog" } } } } }
+        "200":
+          description: Lista av pass
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkoutLog"
       x-openai-isConsequential: false
 
 components:
   schemas:
-
     MealLog:
       type: object
       required: [date, meal, items]
       properties:
-        date:   { type: string, format: date, description: Datum (YYYY-MM-DD) }
-        meal:   { type: string, description: Typ av mål (Frukost, Lunch, …) }
-        items:  { type: string, description: Livsmedel och mängder }
+        date:
+          type: string
+          format: date
+        meal:
+          type: string
+        items:
+          type: string
         estimated_calories:
           type: integer
-          description: Uppskattat kcal (frivilligt, hellre högt)
+          nullable: true
 
     WorkoutLog:
       type: object
       required: [date, type, details]
       properties:
-        date:   { type: string, format: date, description: Datum (YYYY-MM-DD) }
-        type:   { type: string, description: Träningstyp (Styrka, Cardio, …) }
-        details:{ type: string, description: T.ex. “Marklyft 100 kg × 3” }
+        date:
+          type: string
+          format: date
+        type:
+          type: string
+        details:
+          type: string
