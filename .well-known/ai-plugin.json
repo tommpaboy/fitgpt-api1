@@ -2,8 +2,8 @@
   "schema_version": "v1",
   "name_for_human": "FitGPT",
   "name_for_model": "fitgpt",
-  "description_for_human": "Personlig coachning baserad på din Fitbit-data – steg, kalorier, sömn, puls, vikt, HRV och träningspass … och nu även loggning av egna måltider och pass.",
-  "description_for_model": "Analysera användarens Fitbit-data (steps, calories, sleep, heart-rate, weight, HRV, activity logs) och ge motiverande, personlig återkoppling.\n\nHämta data via:\n•  /data – kort sammanfattning för valfritt intervall\n•  /data/extended – detaljerad daglig data inkl. vikt, HRV och senaste träningspass\n\nLogga och hämta användargenererad information via:\n•  POST /log/meal   – spara måltid\n•  GET  /log/meal   – hämta måltider för datum\n•  POST /log/workout – spara träningspass\n•  GET  /log/workout – hämta pass för datum\n\nStäll följdfrågor vid behov och ge konkreta råd utifrån både Fitbit-data och inloggad kost/träning.",
+  "description_for_human": "Personlig coach som kombinerar din Fitbit-data med manuellt loggad kost & träning.",
+  "description_for_model": "Analysera användarens Fitbit-data (steps, calories, sleep, heart-rate, weight, HRV, activity logs) OCH manuellt loggade måltider/träningspass.\n\nPrimär endpoint:\n•  GET /daily-summary?date=YYYY-MM-DD   –   all data för ett datum (Fitbit + Firestore)\n\nÖvriga endpoints vid behov:\n•  GET /data                – Fitbit-summering över X dagar\n•  GET /data/extended       – detaljerad Fitbit-data\n•  POST/GET /log/meal       – logga / hämta måltider\n•  POST/GET /log/workout    – logga / hämta träningspass\n\nGe konkreta, datadrivna råd om kost, träning, sömn & återhämtning.",
   "auth": {
     "type": "none"
   },
