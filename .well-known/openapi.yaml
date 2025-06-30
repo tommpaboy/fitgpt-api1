@@ -1,10 +1,10 @@
-openapi: 3.0.1
+openapi: "3.1.0"
 
 info:
   title: FitGPT API
-  version: "1.1.7"
+  version: "1.1.8"
   description: >
-    End-points för Fitbit-data + manuellt loggade måltider och träningspass.
+    End-points för Fitbit-data + manuellt loggade måltider & träningspass.
 
 servers:
   - url: https://fitgpt-2364.onrender.com
@@ -25,7 +25,9 @@ paths:
           description: Dagsdata
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
+                additionalProperties: true
       x-openai-isConsequential: false
 
   /data:
@@ -41,7 +43,9 @@ paths:
           description: Fitbit-summering
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
+                additionalProperties: true
       x-openai-isConsequential: false
 
   /data/extended:
@@ -57,29 +61,37 @@ paths:
           schema: { type: string, format: date }
       responses:
         "200":
-          description: Full Fitbit-payload
+          description: Detaljerad Fitbit-payload
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
+                additionalProperties: true
       x-openai-isConsequential: false
 
   /log/meal:
     post:
-      summary: Logga måltider (lista)
+      summary: Logga måltider
       operationId: postMeals
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: array
-              items: { $ref: '#/components/schemas/MealLog' }
+              type: object
+              required: [entries]
+              properties:
+                entries:
+                  type: array
+                  items: { $ref: '#/components/schemas/MealLog' }
       responses:
         "200":
           description: Sparade måltider
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
+                additionalProperties: true
       x-openai-isConsequential: false
 
     get:
@@ -102,21 +114,27 @@ paths:
 
   /log/workout:
     post:
-      summary: Logga träningspass (lista)
+      summary: Logga träningspass
       operationId: postWorkouts
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: array
-              items: { $ref: '#/components/schemas/WorkoutLog' }
+              type: object
+              required: [entries]
+              properties:
+                entries:
+                  type: array
+                  items: { $ref: '#/components/schemas/WorkoutLog' }
       responses:
         "200":
           description: Sparade pass
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
+                additionalProperties: true
       x-openai-isConsequential: false
 
     get:
@@ -143,9 +161,9 @@ components:
       type: object
       required: [date, meal, items]
       properties:
-        date: { type: string, format: date }
-        meal: { type: string }
-        items: { type: string }
+        date:   { type: string, format: date }
+        meal:   { type: string }
+        items:  { type: string }
         estimated_calories:
           type: integer
           nullable: true
@@ -154,6 +172,6 @@ components:
       type: object
       required: [date, type, details]
       properties:
-        date: { type: string, format: date }
-        type: { type: string }
-        details: { type: string }
+        date:   { type: string, format: date }
+        type:   { type: string }
+        details:{ type: string }
