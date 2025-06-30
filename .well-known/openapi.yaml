@@ -1,27 +1,33 @@
 openapi: 3.0.1
 info:
   title: FitGPT API
-  version: "1.2.1"
+  version: "1.2.2"
+  description: End-points för Fitbit-data + manuellt loggade måltider & träningspass.
 servers:
   - url: https://fitgpt-2364.onrender.com
 
 paths:
   /daily-summary:
     get:
+      summary: Samlad dagsdata (Fitbit + Firestore)
       operationId: getDailySummary
       parameters:
         - name: date
           in: query
-          schema: { type: string }
+          schema: { type: string, format: date }
+          required: false
       responses:
         "200":
           description: Dagsdata
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/GenericObject" }
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+      x-openai-isConsequential: false
 
   /log/meal:
     post:
+      summary: Logga måltid(er)
       operationId: postMeals
       requestBody:
         required: true
@@ -32,39 +38,90 @@ paths:
               items: { $ref: "#/components/schemas/MealLog" }
       responses:
         "200":
-          description: OK
+          description: Sparade poster
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/GenericObject" }
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+      x-openai-isConsequential: false
 
     get:
+      summary: Hämta måltider för datum
       operationId: getMeals
       parameters:
         - name: date
           in: query
-          schema: { type: string }
+          required: true
+          schema: { type: string, format: date }
       responses:
         "200":
-          description: Meals
+          description: Lista av måltider
           content:
             application/json:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/MealLog" }
+      x-openai-isConsequential: false
+
+  /log/workout:
+    post:
+      summary: Logga träningspass
+      operationId: postWorkouts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: "#/components/schemas/WorkoutLog" }
+      responses:
+        "200":
+          description: Sparade poster
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+      x-openai-isConsequential: false
+
+    get:
+      summary: Hämta pass för datum
+      operationId: getWorkouts
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Lista av pass
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WorkoutLog" }
+      x-openai-isConsequential: false
 
 components:
   schemas:
+    # ────────── GENERIC “anything” OBJECT ──────────
     GenericObject:
       type: object
+      description: Släpps igenom valfritt JSON-objekt
       additionalProperties: true
 
     MealLog:
       type: object
       required: [date, meal, items]
       properties:
-        date: { type: string }
-        meal: { type: string }
-        items: { type: string }
-        estimated_calories:
-          type: integer
-          nullable: true
+        date:   { type: string, format: date }
+        meal:   { type: string, description: Typ av mål }
+        items:  { type: string, description: Livsmedel och mängder }
+        estimated_calories: { type: integer, nullable: true }
+
+    WorkoutLog:
+      type: object
+      required: [date, workout_type, details]
+      properties:
+        date:         { type: string, format: date }
+        workout_type: { type: string, description: Träningstyp }
+        details:      { type: string, description: Exempel – ”Marklyft 100 kg × 3” }
