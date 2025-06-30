@@ -1,199 +1,70 @@
 openapi: 3.0.1
 info:
   title: FitGPT API
-  version: "1.2.0"
-  description: |
-    End-points för Fitbit-data **plus** manuellt loggade måltider & träningspass.
-
+  version: "1.2.1"
 servers:
   - url: https://fitgpt-2364.onrender.com
 
 paths:
   /daily-summary:
     get:
-      summary: Samlad dagsdata (Fitbit + Firestore)
       operationId: getDailySummary
       parameters:
         - name: date
           in: query
-          required: false
-          schema:
-            type: string
-            format: date
+          schema: { type: string }
       responses:
         "200":
           description: Dagsdata
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
-
-  /data:
-    get:
-      summary: Kort Fitbit-översikt
-      operationId: getFitbitSummary
-      parameters:
-        - name: days
-          in: query
-          schema:
-            type: integer
-            default: 1
-            minimum: 1
-            maximum: 30
-      responses:
-        "200":
-          description: Fitbit-summering
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
-
-  /data/extended:
-    get:
-      summary: Detaljerad Fitbit-data
-      operationId: getFitbitExtended
-      parameters:
-        - name: days
-          in: query
-          schema:
-            type: integer
-            default: 1
-        - name: target_date
-          in: query
-          schema:
-            type: string
-            format: date
-      responses:
-        "200":
-          description: Detaljerad Fitbit-data
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+              schema: { $ref: "#/components/schemas/GenericObject" }
 
   /log/meal:
     post:
-      summary: Logga måltid(er)
       operationId: postMeals
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              anyOf:
-                - $ref: '#/components/schemas/Meallog'
-                - type: array
-                  items:
-                    $ref: '#/components/schemas/Meallog'
+              type: array
+              items: { $ref: "#/components/schemas/MealLog" }
       responses:
         "200":
-          description: Logg sparad
+          description: OK
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+              schema: { $ref: "#/components/schemas/GenericObject" }
+
     get:
-      summary: Hämta måltider
       operationId: getMeals
       parameters:
         - name: date
           in: query
-          required: true
-          schema:
-            type: string
-            format: date
+          schema: { type: string }
       responses:
         "200":
-          description: Lista med måltider
+          description: Meals
           content:
             application/json:
               schema:
                 type: array
-                items:
-                  $ref: '#/components/schemas/Meallog'
-
-  /log/workout:
-    post:
-      summary: Logga träningspass
-      operationId: postWorkouts
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              anyOf:
-                - $ref: '#/components/schemas/WorkoutLog'
-                - type: array
-                  items:
-                    $ref: '#/components/schemas/WorkoutLog'
-      responses:
-        "200":
-          description: Logg sparad
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
-    get:
-      summary: Hämta träningspass
-      operationId: getWorkouts
-      parameters:
-        - name: date
-          in: query
-          required: true
-          schema:
-            type: string
-            format: date
-      responses:
-        "200":
-          description: Lista med träningspass
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/WorkoutLog'
+                items: { $ref: "#/components/schemas/MealLog" }
 
 components:
   schemas:
     GenericObject:
       type: object
-      description: Släpps igenom vilket JSON-objekt som helst
       additionalProperties: true
 
-    Meallog:
+    MealLog:
       type: object
-      required:
-        - date
-        - meal
-        - items
+      required: [date, meal, items]
       properties:
-        date:
-          type: string
-          format: date
-        meal:
-          type: string
-          description: Typ av mål (Frukost, Lunch …)
-        items:
-          type: string
-          description: Livsmedel och mängder
+        date: { type: string }
+        meal: { type: string }
+        items: { type: string }
         estimated_calories:
           type: integer
           nullable: true
-          description: Uppskattat kaloriinnehåll
-
-    WorkoutLog:
-      type: object
-      required:
-        - date
-        - workout_type
-        - details
-      properties:
-        date:
-          type: string
-          format: date
-        workout_type:
-          type: string
-          description: Träningstyp (Styrka, Cardio …)
-        details:
-          type: string
-          description: Exempel – ”Marklyft 100 kg x 3”
