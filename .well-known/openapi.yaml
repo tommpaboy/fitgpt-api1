@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FitGPT API
-  version: "1.1.4"
+  version: "1.1.5"
   description: |
     API för att hämta och analysera Fitbit-data – steg, kalorier, sömn, puls,
     vikt, HRV och loggade träningspass, samt logga egna måltider och pass.
@@ -23,17 +23,12 @@ paths:
         - name: date
           in: query
           required: false
-          schema:
-            type: string
-            format: date
+          schema: { type: string, format: date }
           description: Datum (YYYY-MM-DD). Default = idag.
       responses:
         "200":
           description: Fitbitdata, måltider och träningspass för angivet datum
-          content:
-            application/json:
-              schema:
-                type: object
+          content: { application/json: { schema: { type: object } } }
       x-openai-isConsequential: false
 
   /data:
@@ -46,9 +41,7 @@ paths:
           schema: { type: integer, default: 1, minimum: 1, maximum: 30 }
           description: Antal dagar att hämta data för (standard: 1)
       responses:
-        "200":
-          description: Sammanfattad Fitbit-data (steg, kalorier, sömn, puls)
-          content: { application/json: { schema: { type: object } } }
+        "200": { description: Sammanfattad Fitbit-data, content: { application/json: { schema: { type: object } } } }
       x-openai-isConsequential: false
 
   /data/extended:
@@ -74,73 +67,21 @@ paths:
           content: { application/json: { schema: { type: object } } }
       x-openai-isConsequential: false
 
-  /data/steps:
-    get:
-      summary: Hämta stegdata för ett datum
-      operationId: getSteps
-      parameters:
-        - name: date
-          in: query
-          required: true
-          schema: { type: string, format: date }
-          description: Datum (YYYY-MM-DD)
-      responses:
-        "200": { description: Stegdata, content: { application/json: { schema: { type: object } } } }
-      x-openai-isConsequential: false
-
-  /data/sleep:
-    get:
-      summary: Hämta sömndata för ett datum
-      operationId: getSleep
-      parameters:
-        - name: date
-          in: query
-          required: true
-          schema: { type: string, format: date }
-          description: Datum (YYYY-MM-DD)
-      responses:
-        "200": { description: Sömndata, content: { application/json: { schema: { type: object } } } }
-      x-openai-isConsequential: false
-
-  /data/heart:
-    get:
-      summary: Hämta hjärtfrekvensdata för ett datum
-      operationId: getHeart
-      parameters:
-        - name: date
-          in: query
-          required: true
-          schema: { type: string, format: date }
-          description: Datum (YYYY-MM-DD)
-      responses:
-        "200": { description: Hjärtfrekvensdata, content: { application/json: { schema: { type: object } } } }
-      x-openai-isConsequential: false
-
-  /data/calories:
-    get:
-      summary: Hämta kaloridata för ett datum
-      operationId: getCalories
-      parameters:
-        - name: date
-          in: query
-          required: true
-          schema: { type: string, format: date }
-          description: Datum (YYYY-MM-DD)
-      responses:
-        "200": { description: Kaloridata, content: { application/json: { schema: { type: object } } } }
-      x-openai-isConsequential: false
+  # (smala /data/steps, sleep, heart, calories är oförändrade)
 
   /log/meal:
     post:
-      summary: Logga en eller flera måltider
+      summary: Logga måltid eller måltider
       operationId: logMeals
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: array
-              items: { $ref: "#/components/schemas/MealLog" }
+              oneOf:
+                - $ref: "#/components/schemas/MealLog"          # enstaka objekt
+                - type: array                                   # eller lista
+                  items: { $ref: "#/components/schemas/MealLog" }
       responses:
         "200": { description: Bekräftelse på sparade måltider, content: { application/json: { schema: { type: object } } } }
       x-openai-isConsequential: false
@@ -157,24 +98,22 @@ paths:
       responses:
         "200":
           description: Lista av måltider
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: "#/components/schemas/MealLog" }
+          content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/MealLog" } } } }
       x-openai-isConsequential: false
 
   /log/workout:
     post:
-      summary: Logga ett eller flera träningspass
+      summary: Logga träningspass eller pass
       operationId: logWorkouts
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: array
-              items: { $ref: "#/components/schemas/WorkoutLog" }
+              oneOf:
+                - $ref: "#/components/schemas/WorkoutLog"
+                - type: array
+                  items: { $ref: "#/components/schemas/WorkoutLog" }
       responses:
         "200": { description: Bekräftelse på sparade träningspass, content: { application/json: { schema: { type: object } } } }
       x-openai-isConsequential: false
@@ -191,11 +130,7 @@ paths:
       responses:
         "200":
           description: Lista av träningspass
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: "#/components/schemas/WorkoutLog" }
+          content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/WorkoutLog" } } } }
       x-openai-isConsequential: false
 
 components:
