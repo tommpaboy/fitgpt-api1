@@ -34,7 +34,9 @@ app.add_middleware(
 # Fitbit-inställningar
 FITBIT_CLIENT_ID     = os.getenv("FITBIT_CLIENT_ID")
 FITBIT_CLIENT_SECRET = os.getenv("FITBIT_CLIENT_SECRET")
-REDIRECT_URI         = os.getenv("REDIRECT_URI", "https://fitgpt-2364.onrender.com/callback")
+REDIRECT_URI         = os.getenv(
+    "REDIRECT_URI", "https://fitgpt-2364.onrender.com/callback"
+)
 TOKEN_FILE           = "fitbit_token.json"
 
 # -----------------------------------------------------------
@@ -85,11 +87,11 @@ class WorkoutLog(BaseModel):
         allow_population_by_field_name = True
 
 # -----------------------------------------------------------
-# 🔒 Valfri Bearer-auth (aktivera genom att sätta API_KEY i .env)
+# 🔒 Valfri Bearer-auth (sätt API_KEY i .env för att aktivera)
 # -----------------------------------------------------------
 def verify_auth(request: Request):
     required = os.getenv("API_KEY")
-    if not required:                 # ingen nyckel satt => auth avstängd
+    if not required:                # ingen nyckel satt → auth avstängd
         return
     token = request.headers.get("authorization")
     if token != f"Bearer {required}":
@@ -132,19 +134,43 @@ def get_meals(date: str):
     docs = db.collection("meals").where("date", "==", date).stream()
     return [d.to_dict() for d in docs]
 
+@app.put("/log/meal/{doc_id}", dependencies=[Depends(verify_auth)])
+def put_meal(doc_id: str, entry: MealLog = Body(...)):
+    db.collection("meals").document(doc_id).set(entry.dict(exclude_none=True))
+    return {"id": doc_id, "status": "updated"}
+
+@app.delete("/log/meal/{doc_id}", dependencies=[Depends(verify_auth)])
+def delete_meal(doc_id: str):
+    db.collection("meals").document(doc_id).delete()
+    return {"id": doc_id, "status": "deleted"}
+
 # -----------------------------------------------------------
 # 🔥 Firestore – träningspass
 # -----------------------------------------------------------
 @app.post("/log/workout", dependencies=[Depends(verify_auth)])
 def post_workout(entry: WorkoutLog = Body(...)):
     """Loggar ETT träningspass och returnerar id + status"""
-    doc_ref = db.collection("workouts").add(entry.dict(by_alias=True, exclude_none=True))[1]
+    doc_ref = db.collection("workouts").add(
+        entry.dict(by_alias=True, exclude_none=True)
+    )[1]
     return {"id": doc_ref.id, "status": "stored"}
 
 @app.get("/log/workout")
 def get_workouts(date: str):
     docs = db.collection("workouts").where("date", "==", date).stream()
     return [d.to_dict() for d in docs]
+
+@app.put("/log/workout/{doc_id}", dependencies=[Depends(verify_auth)])
+def put_workout(doc_id: str, entry: WorkoutLog = Body(...)):
+    db.collection("workouts").document(doc_id).set(
+        entry.dict(by_alias=True, exclude_none=True)
+    )
+    return {"id": doc_id, "status": "updated"}
+
+@app.delete("/log/workout/{doc_id}", dependencies=[Depends(verify_auth)])
+def delete_workout(doc_id: str):
+    db.collection("workouts").document(doc_id).delete()
+    return {"id": doc_id, "status": "deleted"}
 
 # -----------------------------------------------------------
 # 💾 Fitbit OAuth & helpers
@@ -162,7 +188,9 @@ def authorize():
 @app.get("/callback")
 def callback(code: str):
     token_url   = "https://api.fitbit.com/oauth2/token"
-    auth_header = base64.b64encode(f"{FITBIT_CLIENT_ID}:{FITBIT_CLIENT_SECRET}".encode()).decode()
+    auth_header = base64.b64encode(
+        f"{FITBIT_CLIENT_ID}:{FITBIT_CLIENT_SECRET}".encode()
+    ).decode()
 
     resp = requests.post(
         token_url,
@@ -185,7 +213,7 @@ def callback(code: str):
     raise HTTPException(status_code=400, detail=data)
 
 # -----------------------------------------------------------
-# Fitbit-helpers (oförändrat)
+# Fitbit-helpers
 # -----------------------------------------------------------
 def refresh_token_if_needed():
     if not os.path.exists(TOKEN_FILE):
@@ -194,11 +222,19 @@ def refresh_token_if_needed():
         token_data = json.load(f)
 
     headers = {"Authorization": f"Bearer {token_data['access_token']}"}
-    if requests.get("https://api.fitbit.com/1/user/-/profile.json", headers=headers).status_code == 200:
+    if (
+        requests.get(
+            "https://api.fitbit.com/1/user/-/profile.json",
+            headers=headers,
+        ).status_code
+        == 200
+    ):
         return token_data
 
     # Förnya token
-    auth_header = base64.b64encode(f"{FITBIT_CLIENT_ID}:{FITBIT_CLIENT_SECRET}".encode()).decode()
+    auth_header = base64.b64encode(
+        f"{FITBIT_CLIENT_ID}:{FITBIT_CLIENT_SECRET}".encode()
+    ).decode()
     resp = requests.post(
         "https://api.fitbit.com/oauth2/token",
         headers={
@@ -223,7 +259,10 @@ def get_fitbit_data(resource_path, start_date, end_date):
         return {"error": "Ingen giltig token."}
 
     headers = {"Authorization": f"Bearer {token['access_token']}"}
-    url = f"https://api.fitbit.com/1/user/-/{resource_path}/date/{start_date}/{end_date}.json"
+    url = (
+        "https://api.fitbit.com/1/user/-/"
+        f"{resource_path}/date/{start_date}/{end_date}.json"
+    )
     resp = requests.get(url, headers=headers)
     if resp.status_code == 429:               # rate-limit
         time.sleep(int(resp.headers.get("Retry-After", 5)))
@@ -239,7 +278,10 @@ def get_activity_logs(date_str):
     if not token:
         return []
     headers = {"Authorization": f"Bearer {token['access_token']}"}
-    url = f"https://api.fitbit.com/1/user/-/activities/list.json?beforeDate={date_str}&sort=desc&limit=10&offset=0"
+    url = (
+        "https://api.fitbit.com/1/user/-/activities/list.json"
+        f"?beforeDate={date_str}&sort=desc&limit=10&offset=0"
+    )
     try:
         return requests.get(url, headers=headers).json().get("activities", [])
     except Exception:
