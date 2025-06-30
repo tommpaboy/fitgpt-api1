@@ -1,4 +1,5 @@
-openapi: 3.0.1
+openapi: 3.1.0
+
 info:
   title: FitGPT API
   version: "1.2.2"
@@ -31,7 +32,7 @@ paths:
   /log/meal:
     post:
       summary: Logga måltid
-      operationId: postMeal              # en åt gången → enklare för GPT
+      operationId: postMeal
       requestBody:
         required: true
         content:
@@ -45,7 +46,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GenericObject'
-      x-openai-isConsequential: true     # <-- ändrat
+      x-openai-isConsequential: true
 
     get:
       summary: Hämta måltider för datum
@@ -71,7 +72,7 @@ paths:
   /log/workout:
     post:
       summary: Logga träningspass
-      operationId: postWorkout          # en åt gången
+      operationId: postWorkout
       requestBody:
         required: true
         content:
@@ -112,8 +113,9 @@ components:
   schemas:
     GenericObject:
       type: object
-      description: Släpps igenom valfritt JSON-objekt
-      additionalProperties: {}          # bool → tomt schema
+      description: Valfritt JSON-objekt
+      properties: {}
+      additionalProperties: true
 
     MealLog:
       type: object
@@ -129,7 +131,8 @@ components:
           type: string
           description: Livsmedel och mängder
         estimated_calories:
-          type: integer                  # nullable plockad bort
+          type: integer
+          description: Beräknade kcal (valfritt)
 
     WorkoutLog:
       type: object
