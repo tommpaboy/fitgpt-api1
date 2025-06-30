@@ -3,19 +3,14 @@ openapi: 3.0.1
 info:
   title: FitGPT API
   version: "1.1.7"
-  description: |
-    API för Fitbit-data **plus** manuellt loggade måltider & pass.
-
-    • `/daily-summary`  – all dagsdata i ett anrop  
-    • `/data`           – kort Fitbit-summering över X dagar  
-    • `/data/extended`  – detaljerad Fitbit-data  
-    • `/log/meal`       – logga / hämta måltider  
-    • `/log/workout`    – logga / hämta träningspass
+  description: >
+    End-points för Fitbit-data + manuellt loggade måltider och träningspass.
 
 servers:
   - url: https://fitgpt-2364.onrender.com
 
 paths:
+
   /daily-summary:
     get:
       summary: Samlad dagsdata (Fitbit + Firestore)
@@ -25,82 +20,70 @@ paths:
           in: query
           required: false
           schema: { type: string, format: date }
-          description: Datum (YYYY-MM-DD). Default = idag.
       responses:
         "200":
-          description: Fitbitdata, måltider & träningspass
+          description: Dagsdata
           content:
             application/json:
-              schema:
-                type: object
-                additionalProperties: true
+              schema: { type: object }
       x-openai-isConsequential: false
 
   /data:
     get:
-      summary: Hämta sammanfattad Fitbit-data
+      summary: Kort Fitbit-översikt
       operationId: getFitbitSummary
       parameters:
         - name: days
           in: query
           schema: { type: integer, default: 1, minimum: 1, maximum: 30 }
-          description: Antal dagar (default 1)
       responses:
         "200":
-          description: Sammanfattad Fitbit-data
+          description: Fitbit-summering
           content:
             application/json:
-              schema:
-                type: object
-                additionalProperties: true
+              schema: { type: object }
       x-openai-isConsequential: false
 
   /data/extended:
     get:
-      summary: Hämta detaljerad Fitbit-data
+      summary: Detaljerad Fitbit-data
       operationId: getFitbitExtended
       parameters:
         - name: days
           in: query
           schema: { type: integer, default: 1, minimum: 1, maximum: 30 }
-          description: Används om `target_date` saknas.
         - name: target_date
           in: query
           schema: { type: string, format: date }
-          description: Datum (YYYY-MM-DD) – åsidosätter `days`.
       responses:
         "200":
-          description: Detaljerad Fitbit-data
+          description: Full Fitbit-payload
           content:
             application/json:
-              schema:
-                type: object
-                additionalProperties: true
+              schema: { type: object }
       x-openai-isConsequential: false
 
   /log/meal:
     post:
-      summary: Logga måltid(er)
+      summary: Logga måltider (lista)
       operationId: postMeals
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              anyOf:
-                - $ref: '#/components/schemas/MealLog'
-                - type: array
-                  items: { $ref: '#/components/schemas/MealLog' }
+              type: array
+              items: { $ref: '#/components/schemas/MealLog' }
       responses:
         "200":
-          description: Sparad(e) måltid(er)
+          description: Sparade måltider
           content:
             application/json:
-              schema: { type: object, additionalProperties: true }
+              schema: { type: object }
       x-openai-isConsequential: false
 
     get:
-      summary: Lista måltider för datum
+      summary: Hämta måltider för datum
       operationId: getMeals
       parameters:
         - name: date
@@ -109,7 +92,7 @@ paths:
           schema: { type: string, format: date }
       responses:
         "200":
-          description: Måltidslista
+          description: Måltider
           content:
             application/json:
               schema:
@@ -119,27 +102,25 @@ paths:
 
   /log/workout:
     post:
-      summary: Logga träningspass
+      summary: Logga träningspass (lista)
       operationId: postWorkouts
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              anyOf:
-                - $ref: '#/components/schemas/WorkoutLog'
-                - type: array
-                  items: { $ref: '#/components/schemas/WorkoutLog' }
+              type: array
+              items: { $ref: '#/components/schemas/WorkoutLog' }
       responses:
         "200":
-          description: Sparat(e) pass
+          description: Sparade pass
           content:
             application/json:
-              schema: { type: object, additionalProperties: true }
+              schema: { type: object }
       x-openai-isConsequential: false
 
     get:
-      summary: Lista pass för datum
+      summary: Hämta pass för datum
       operationId: getWorkouts
       parameters:
         - name: date
@@ -148,7 +129,7 @@ paths:
           schema: { type: string, format: date }
       responses:
         "200":
-          description: Pass-lista
+          description: Pass
           content:
             application/json:
               schema:
@@ -162,18 +143,17 @@ components:
       type: object
       required: [date, meal, items]
       properties:
-        date:   { type: string, format: date, description: Datum (YYYY-MM-DD) }
-        meal:   { type: string, description: Typ av mål (Frukost, Lunch …) }
-        items:  { type: string, description: Livsmedel & mängder }
+        date: { type: string, format: date }
+        meal: { type: string }
+        items: { type: string }
         estimated_calories:
           type: integer
           nullable: true
-          description: Uppskattade kcal
 
     WorkoutLog:
       type: object
       required: [date, type, details]
       properties:
-        date:   { type: string, format: date, description: Datum (YYYY-MM-DD) }
-        type:   { type: string, description: Träningstyp (Styrka, Cardio …) }
-        details:{ type: string, description: Exempel ”Marklyft 100 kg × 3” }
+        date: { type: string, format: date }
+        type: { type: string }
+        details: { type: string }
