@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional, List, Tuple
 import requests, json, os, base64, time, re
-from datetime import datetime as dt, timedelta, date as dt_date
+from datetime import datetime as dt, timedelta
 from zoneinfo import ZoneInfo
 from cachetools import TTLCache, cached
 from dotenv import load_dotenv
@@ -71,7 +71,7 @@ class WorkoutLog(BaseModel):
         None, alias="startTime",
         description="ISO-tid (YYYY-MM-DDTHH:MM:SS). Tomt ⇒ FitGPT gissar."
     )
-    type: Optional[str] = Field(None, alias="workout_type")  # bakåtkomp.
+    type: Optional[str] = Field(None, alias="workout_type")
 
     class Config:
         allow_population_by_field_name = True
@@ -338,7 +338,7 @@ def _combine_workouts(date_str: str) -> List[dict]:
 
     merged, used_auto = [], set()
 
-    # 1. Matcha manuella med start_time
+    # 1. Match manuella med start_time
     for m in manual:
         st = m.get("start_time") or m.get("startTime")
         if not st:
@@ -365,7 +365,7 @@ def _combine_workouts(date_str: str) -> List[dict]:
         if not matched:
             merged.append(m)
 
-    # 2. Matcha manuella utan start_time via heuristik
+    # 2. Match manuella utan start_time via heuristik
     for m in [x for x in manual if not (x.get("start_time") or x.get("startTime"))]:
         idx, conf = _guess_auto_match(m, auto, used_auto)
         if idx is not None and conf >= 0.8:
@@ -375,7 +375,7 @@ def _combine_workouts(date_str: str) -> List[dict]:
         else:
             merged.append({**m, "needs_confirmation": True})
 
-    # 3. Kvarvarande Fitbit-pass
+    # 3. Resterande Fitbit-pass
     merged.extend([a for i, a in enumerate(auto) if i not in used_auto])
     return merged
 
@@ -385,26 +385,34 @@ def _combine_workouts(date_str: str) -> List[dict]:
 _cache = TTLCache(maxsize=64, ttl=60)
 
 def _sum_calories(meal_docs: List[dict]) -> int:
-    """Summerar estimated_calories för en lista måltidsdokument."""
-    return sum(m.get("estimated_calories", 0) for m in meal_docs)
+    return sum(m.get("estimated_calories", 0) or 0 for m in meal_docs)
+
+def _extract_daily_kcal_out(fitbit_calorie_blob: dict) -> Optional[int]:
+    """
+    Fitbit-returnen kan se ut så här:
+      {
+        "data": {
+          "activities-calories": [
+            {"dateTime": "2025-07-02", "value": "2794"}
+          ]
+        }
+      }
+    Vi returnerar 2794 som int eller None om det inte gick.
+    """
+    try:
+        return int(
+            fitbit_calorie_blob["data"]["activities-calories"][0]["value"]
+        )
+    except Exception:
+        return None
 
 def _build_daily_summary(date_str: str, *, bypass_cache=False):
-    """Returnerar samlad data + kcal-summeringar för ett datum."""
     meals     = get_meals(date_str)
     workouts  = _combine_workouts(date_str)
     fitbit    = get_extended(target_date=date_str)
 
-    # ---- kcal in ----
-    kcal_in = _sum_calories(meals)
-
-    # ---- kcal ut ----
-    kcal_out = 0
-    try:
-        kc_series = fitbit["calories"]["data"]["activities-calories"]
-        # Fitbit ger en lista med ett element vid 1-dagsanrop
-        kcal_out = int(kc_series[0]["value"])
-    except Exception:
-        pass
+    kcal_in  = _sum_calories(meals)
+    kcal_out = _extract_daily_kcal_out(fitbit["calories"])
 
     return {
         "date":      date_str,
@@ -466,27 +474,10 @@ def get_extended(days: int = 1, target_date: Optional[str] = None):
     }
 
 # -----------------------------------------------------------
-# 🧩 Extended FULL (Fitbit + Firestore) – alltid färsk vid fresh=true
+# 🧩 Extended FULL (Fitbit + Firestore)
 # -----------------------------------------------------------
 @app.get("/data/extended/full")
 def get_extended_full(days: int = 1, fresh: bool = False):
-    """
-    Returnerar:
-      {
-        "from": <ISO>,
-        "to":   <ISO>,
-        "days": {
-          "<YYYY-MM-DD>": {
-            "date": ...,
-            "kcal_in": ...,
-            "kcal_out": ...,
-            "fitbit": {...},
-            "meals": [...],
-            "workouts": [...]
-          }, ...
-        }
-      }
-    """
     if days < 1:
         raise HTTPException(status_code=400, detail="days måste vara ≥ 1")
 
