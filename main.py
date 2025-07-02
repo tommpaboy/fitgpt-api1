@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
 import requests, json, os, base64, time
-from datetime import date as dt_date, timedelta          # alias!  (no name-clash)
+from datetime import date as dt_date, timedelta
 from cachetools import TTLCache, cached
 from dotenv import load_dotenv
 
@@ -68,7 +68,7 @@ db = firestore.Client(credentials=firebase_creds, project=cred_info.get("project
 # -----------------------------------------------------------
 class MealLog(BaseModel):
     date: str            # YYYY-MM-DD
-    meal: str            # t.ex. "Lunch"
+    meal: str
     items: str
     estimated_calories: Optional[int] = None
 
@@ -179,7 +179,9 @@ def authorize():
 @app.get("/callback")
 def callback(code: str):
     token_url   = "https://api.fitbit.com/oauth2/token"
-    auth_header = base64.b64encode(f"{FITBIT_CLIENT_ID}:{FITBIT_CLIENT_SECRET}".encode()).decode()
+    auth_header = base64.b64encode(
+        f"{FITBIT_CLIENT_ID}:{FITBIT_CLIENT_SECRET}".encode()
+    ).decode()
 
     resp = requests.post(
         token_url,
@@ -212,9 +214,9 @@ def refresh_token_if_needed():
     with open(TOKEN_FILE) as f:
         token_data = json.load(f)
 
-    exp_secs  = token_data.get("expires_in", 28800)
-    saved_at  = token_data.get("_saved_at", 0)
-    if time.time() < saved_at + exp_secs - 60:   # giltig minst 1 min till
+    exp_secs = token_data.get("expires_in", 28800)  # default 8 h
+    saved_at = token_data.get("_saved_at", 0)
+    if time.time() < saved_at + exp_secs - 60:
         return token_data
 
     auth_header = base64.b64encode(f"{FITBIT_CLIENT_ID}:{FITBIT_CLIENT_SECRET}".encode()).decode()
@@ -243,9 +245,12 @@ def get_fitbit_data(resource_path, start_date, end_date):
         return {"error": "Ingen giltig token."}
 
     headers = {"Authorization": f"Bearer {token['access_token']}"}
-    url = f"https://api.fitbit.com/1/user/-/{resource_path}/date/{start_date}/{end_date}.json"
+    url = (
+        f"https://api.fitbit.com/1/user/-/"
+        f"{resource_path}/date/{start_date}/{end_date}.json"
+    )
     resp = requests.get(url, headers=headers)
-    if resp.status_code == 429:          # rate-limit
+    if resp.status_code == 429:
         time.sleep(int(resp.headers.get("Retry-After", 5)))
         resp = requests.get(url, headers=headers)
     try:
@@ -262,18 +267,18 @@ def get_activity_logs(date_str: str):
     headers = {"Authorization": f"Bearer {token['access_token']}"}
     url = (
         "https://api.fitbit.com/1/user/-/activities/list.json"
-        f"?afterDate={date_str}&beforeDate={date_str}&sort=asc&limit=20&offset=0"
+        f"?beforeDate={date_str}T23:59:59&sort=desc&limit=50&offset=0"
     )
     try:
-        data = requests.get(url, headers=headers).json().get("activities", [])
-        return [a for a in data if a.get("originalStartTime", "").startswith(date_str)]
+        raw = requests.get(url, headers=headers).json().get("activities", [])
+        return [a for a in raw if a.get("originalStartTime", "").startswith(date_str)]
     except Exception:
         return []
 
 # -----------------------------------------------------------
-# 📦 Daily summary (Fitbit + Firestore) – alltid live för ”i dag”
+# 📦 Daily summary – live för i dag
 # -----------------------------------------------------------
-_summary_cache = TTLCache(maxsize=64, ttl=300)          # 5 min för historik
+_summary_cache = TTLCache(maxsize=64, ttl=300)  # 5 min-cache för historik
 
 def _build_daily_summary(target_date: str):
     return {
@@ -328,7 +333,7 @@ def get_summary(days: int = 1):
         "heart":    get_fitbit_data("activities/heart",    start, end),
     }
 
-# ---------- Extended --------------------------------------
+# ---------- Extended (Fitbit) ------------------------------
 @app.get("/data/extended")
 def get_extended(days: int = 1, target_date: Optional[str] = None):
     if target_date:
@@ -340,11 +345,39 @@ def get_extended(days: int = 1, target_date: Optional[str] = None):
     return {
         "from":   start,
         "to":     end,
-        "steps":      get_fitbit_data("activities/steps",    start, end),
-        "calories":   get_fitbit_data("activities/calories", start, end),
-        "sleep":      get_fitbit_data("sleep",               start, end),
-        "heart":      get_fitbit_data("activities/heart",    start, end),
-        "weight":     get_fitbit_data("body/log/weight",     start, end),
+        "steps":        get_fitbit_data("activities/steps",    start, end),
+        "calories":     get_fitbit_data("activities/calories", start, end),
+        "sleep":        get_fitbit_data("sleep",               start, end),
+        "heart":        get_fitbit_data("activities/heart",    start, end),
+        "weight":       get_fitbit_data("body/log/weight",     start, end),
         "activity_logs": get_activity_logs(end),
-        "hrv":        get_fitbit_data("hrv",                 start, end),
+        "hrv":          get_fitbit_data("hrv",                 start, end),
     }
+
+# ---------- Extended FULL (Fitbit + Firestore) -------------
+@app.get("/data/extended/full")
+def get_extended_full(days: int = 1, fresh: bool = False):
+    """
+    Kombinerar Fitbit extended + Firestore-måltider & workouts
+    för 'days' bakåt inkl. i dag.
+    """
+    if days < 1:
+        raise HTTPException(status_code=400, detail="days måste vara ≥ 1")
+
+    fitbit_part = get_extended(days=days)     # Fitbit-data
+
+    today = dt_date.today()
+    start = today - timedelta(days=days - 1)
+    dates = [(start + timedelta(days=i)).isoformat() for i in range(days)]
+
+    meals_dict    = {d: get_meals(d)    for d in dates}
+    workouts_dict = {d: get_workouts(d) for d in dates}
+
+    # Hoppa cache för i dag om fresh=true
+    if fresh and today.isoformat() in dates:
+        meals_dict[today.isoformat()]    = get_meals(today.isoformat())
+        workouts_dict[today.isoformat()] = get_workouts(today.isoformat())
+
+    fitbit_part["meals"]    = meals_dict
+    fitbit_part["workouts"] = workouts_dict
+    return fitbit_part
