@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: FitGPT API
-  version: "1.6.0"
+  version: "1.6.1"
   description: |
     API för att kombinera Fitbit-data med manuellt loggade måltider och träningspass.
     GPT hämtar som standard de senaste 3 dagarna utan att fråga användaren om lov.
@@ -22,7 +22,7 @@ paths:
           schema: {type: string, format: date}
         - in: query
           name: fresh
-          description: true → hoppa cache
+          description: true → hoppa cache (hämtar alltid senaste datan från Fitbit)
           schema: {type: boolean}
       responses:
         "200":
@@ -64,6 +64,7 @@ paths:
           schema: {type: integer, minimum: 1, default: 3}
         - in: query
           name: fresh
+          description: true → hämtar färsk data istället för cache
           schema: {type: boolean}
       responses:
         "200":
@@ -315,6 +316,9 @@ components:
         kcal_out:
           type: integer
           description: Kalorier ut (Fitbit-data)
+        is_estimate:
+          type: boolean
+          description: true om kcal_out är uppskattat från steg/BMR istället för hämtat från Fitbit
 
     MealLog:
       type: object
