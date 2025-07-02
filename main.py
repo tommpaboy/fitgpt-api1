@@ -1,5 +1,6 @@
-# main.py – FitGPT API
-# -----------------------------------------------------------
+# -------------------------------------------
+# 🚀  Imports   (överst i filen)
+# -------------------------------------------
 from fastapi import FastAPI, HTTPException, Body, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -9,11 +10,11 @@ from pydantic import BaseModel, Field
 from typing import Optional
 import requests, json, os, base64, time
 from datetime import date, timedelta
-from functools import lru_cache
+# ➡️  TA BORT den här raden:
+# from functools import lru_cache
+# ➡️  LÄGG TILL den här raden:
+from cachetools import TTLCache, cached
 from dotenv import load_dotenv
-
-from google.oauth2 import service_account
-from google.cloud import firestore
 
 # -----------------------------------------------------------
 # 🚀 Init & miljövariabler
@@ -287,10 +288,14 @@ def get_activity_logs(date_str):
     except Exception:
         return []
 
-# -----------------------------------------------------------
+# -------------------------------------------
 # 📦  Daily summary (Fitbit + Firestore)
-# -----------------------------------------------------------
-@lru_cache(maxsize=64)
+# -------------------------------------------
+
+# 5-minuters cache med max 64 olika datum
+_summary_cache = TTLCache(maxsize=64, ttl=300)
+
+@cached(_summary_cache)
 def _build_daily_summary(target_date: str):
     return {
         "date":     target_date,
@@ -300,9 +305,23 @@ def _build_daily_summary(target_date: str):
     }
 
 @app.get("/daily-summary")
-def daily_summary(date: Optional[str] = None):
+def daily_summary(
+    date: Optional[str] = None,
+    fresh: bool = False          # ?fresh=true tömmer cachen manuellt
+):
+    """
+    Samlar Fitbit-data + Firestore-loggar för ett datum.
+
+    • Om `fresh=true` → vi tömmer cache och hämtar allt direkt.
+    • Annars använder vi upp till 5 min gammal cache för samma datum
+      (sparar API-anrop men håller datan aktuell inom rimlig tid).
+    """
     if not date:
         date = date.today().isoformat()
+
+    if fresh:
+        _summary_cache.clear()   # tvinga omhämtning
+
     return _build_daily_summary(date)
 
 # ---------- Smala Fitbit-endpoints -------------------------
