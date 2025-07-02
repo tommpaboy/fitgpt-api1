@@ -291,41 +291,30 @@ def get_activity_logs(date_str):
     except Exception:
         return []
 
-# -------------------------------------------
-# 📦  Daily summary (Fitbit + Firestore)
-# -------------------------------------------
+# 📦 Daily summary (Fitbit + Firestore) – ALLTID live för dagens datum
+_summary_cache = TTLCache(maxsize=64, ttl=300)        # 5 min för historik
 
-# 5-minuters cache med max 64 olika datum
-_summary_cache = TTLCache(maxsize=64, ttl=300)
-
-@cached(_summary_cache)
 def _build_daily_summary(target_date: str):
     return {
         "date":     target_date,
         "fitbit":   get_extended(target_date=target_date),
-        "meals":    get_meals(target_date),
+        "meals":    get_meals(target_date),           # Firestore-anrop är redan live
         "workouts": get_workouts(target_date),
     }
 
 @app.get("/daily-summary")
-def daily_summary(
-    date: Optional[str] = None,
-    fresh: bool = False          # ?fresh=true tömmer cachen manuellt
-):
-    """
-    Samlar Fitbit-data + Firestore-loggar för ett datum.
-
-    • Om `fresh=true` → vi tömmer cache och hämtar allt direkt.
-    • Annars använder vi upp till 5 min gammal cache för samma datum
-      (sparar API-anrop men håller datan aktuell inom rimlig tid).
-    """
+def daily_summary(date: Optional[str] = None, fresh: bool = False):
     if not date:
         date = date.today().isoformat()
 
-    if fresh:
-        _summary_cache.clear()   # tvinga omhämtning
+    is_today = (date == date.today().isoformat())
 
-    return _build_daily_summary(date)
+    # ‼️  För dagens datum (eller om fresh=True) hoppar vi över cachen helt
+    if fresh or is_today:
+        return _build_daily_summary(date)
+
+    # annars 5-min-cache
+    return cached(_summary_cache)(_build_daily_summary)(date)
 
 # ---------- Smala Fitbit-endpoints -------------------------
 @app.get("/data/steps")
