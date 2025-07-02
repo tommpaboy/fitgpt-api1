@@ -2,9 +2,9 @@ openapi: 3.1.0
 
 info:
   title: FitGPT API
-  version: "1.4.2"
+  version: "1.5.0"
   description: |
-    End-points för Fitbit-data plus manuellt loggade måltider & träningspass.
+    End-points för Fitbit-data samt manuellt loggade måltider & träningspass.
 
 servers:
   - url: https://fitgpt-2364.onrender.com
@@ -26,7 +26,9 @@ paths:
       responses:
         "200":
           description: OK
-          content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericObject'}
       x-openai-isConsequential: false
 
   /data/extended/full:
@@ -43,7 +45,9 @@ paths:
       responses:
         "200":
           description: OK
-          content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericObject'}
       x-openai-isConsequential: false
 
   # ───────────── MÅLTIDER ─────────────────────────
@@ -53,9 +57,15 @@ paths:
       operationId: postMeal
       requestBody:
         required: true
-        content: {application/json: {schema: {$ref: '#/components/schemas/MealLog'}}}
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MealLog'}
       responses:
-        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericObject'}
       x-openai-isConsequential: true
     get:
       summary: Hämta måltider för datum
@@ -66,7 +76,13 @@ paths:
           required: true
           schema: {type: string, format: date}
       responses:
-        "200": {description: OK, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/MealLog'}}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/MealLog'}
       x-openai-isConsequential: false
 
   /log/meal/{id}:
@@ -80,9 +96,15 @@ paths:
           schema: {type: string}
       requestBody:
         required: true
-        content: {application/json: {schema: {$ref: '#/components/schemas/MealLog'}}}
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MealLog'}
       responses:
-        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericObject'}
       x-openai-isConsequential: true
     delete:
       summary: Ta bort måltid
@@ -93,7 +115,11 @@ paths:
           required: true
           schema: {type: string}
       responses:
-        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericObject'}
       x-openai-isConsequential: true
 
   # ────────── TRÄNINGSPASS ────────────────────────
@@ -103,9 +129,15 @@ paths:
       operationId: postWorkout
       requestBody:
         required: true
-        content: {application/json: {schema: {$ref: '#/components/schemas/WorkoutLog'}}}
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/WorkoutLog'}
       responses:
-        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericObject'}
       x-openai-isConsequential: true
     get:
       summary: Hämta pass för datum
@@ -116,7 +148,13 @@ paths:
           required: true
           schema: {type: string, format: date}
       responses:
-        "200": {description: OK, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/WorkoutLog'}}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/WorkoutLog'}
       x-openai-isConsequential: false
 
   /log/workout/{id}:
@@ -130,9 +168,15 @@ paths:
           schema: {type: string}
       requestBody:
         required: true
-        content: {application/json: {schema: {$ref: '#/components/schemas/WorkoutLog'}}}
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/WorkoutLog'}
       responses:
-        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericObject'}
       x-openai-isConsequential: true
     delete:
       summary: Ta bort träningspass
@@ -143,7 +187,11 @@ paths:
           required: true
           schema: {type: string}
       responses:
-        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericObject'}
       x-openai-isConsequential: true
 
 components:
@@ -165,6 +213,7 @@ components:
       type: object
       required: [date, workout_type, details]
       properties:
-        date:  {type: string, format: date}
-        workout_type: {type: string}
-        details: {type: string}
+        date:        {type: string, format: date}
+        workout_type:{type: string}
+        details:     {type: string}
+        start_time:  {type: string, format: date-time, description: ISO-datumtid (YYYY-MM-DDTHH:MM:SS)}
