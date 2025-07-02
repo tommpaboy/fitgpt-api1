@@ -16,6 +16,8 @@ from dotenv import load_dotenv
 from google.oauth2 import service_account
 from google.cloud import firestore
 
+from dateutil import parser as dt_parse   #  ← NY
+
 # -----------------------------------------------------------
 # 🚀 Init & miljövariabler
 # -----------------------------------------------------------
@@ -67,7 +69,7 @@ db = firestore.Client(credentials=firebase_creds, project=cred_info.get("project
 # 🎯 Datamodeller
 # -----------------------------------------------------------
 class MealLog(BaseModel):
-    date: str            # YYYY-MM-DD
+    date: str
     meal: str
     items: str
     estimated_calories: Optional[int] = None
@@ -77,7 +79,6 @@ class WorkoutLog(BaseModel):
     date: str
     workout_type: str
     details: str
-    # acceptera även gamla klienter som skickar "type"
     type: Optional[str] = Field(None, alias="workout_type")
 
     class Config:
@@ -123,7 +124,6 @@ def set_user_profile(profile: dict):
 def post_meal(entry: MealLog = Body(...)):
     doc_id = f"{entry.date}-{entry.meal.lower()}"
     db.collection("meals").document(doc_id).set(entry.dict(exclude_none=True))
-    # returnera dagsdata direkt ⇢ GPT kan uppdatera sig utan extra anrop
     return {"id": doc_id, "status": "stored",
             "daily": _build_daily_summary(entry.date, bypass_cache=True)}
 
@@ -131,16 +131,6 @@ def post_meal(entry: MealLog = Body(...)):
 def get_meals(date: str):
     docs = db.collection("meals").where("date", "==", date).stream()
     return [d.to_dict() for d in docs]
-
-@app.put("/log/meal/{doc_id}", dependencies=[Depends(verify_auth)])
-def put_meal(doc_id: str, entry: MealLog = Body(...)):
-    db.collection("meals").document(doc_id).set(entry.dict(exclude_none=True))
-    return {"id": doc_id, "status": "updated"}
-
-@app.delete("/log/meal/{doc_id}", dependencies=[Depends(verify_auth)])
-def delete_meal(doc_id: str):
-    db.collection("meals").document(doc_id).delete()
-    return {"id": doc_id, "status": "deleted"}
 
 # -----------------------------------------------------------
 # 🔥 Firestore – träningspass
@@ -156,16 +146,6 @@ def get_workouts(date: str):
     docs = db.collection("workouts").where("date", "==", date).stream()
     return [d.to_dict() for d in docs]
 
-@app.put("/log/workout/{doc_id}", dependencies=[Depends(verify_auth)])
-def put_workout(doc_id: str, entry: WorkoutLog = Body(...)):
-    db.collection("workouts").document(doc_id).set(entry.dict(by_alias=True, exclude_none=True))
-    return {"id": doc_id, "status": "updated"}
-
-@app.delete("/log/workout/{doc_id}", dependencies=[Depends(verify_auth)])
-def delete_workout(doc_id: str):
-    db.collection("workouts").document(doc_id).delete()
-    return {"id": doc_id, "status": "deleted"}
-
 # -----------------------------------------------------------
 # 💾 Fitbit OAuth
 # -----------------------------------------------------------
@@ -179,117 +159,74 @@ def authorize():
     )
     return RedirectResponse(url)
 
-@app.get("/callback")
-def callback(code: str):
-    token_url   = "https://api.fitbit.com/oauth2/token"
-    auth_header = base64.b64encode(
-        f"{FITBIT_CLIENT_ID}:{FITBIT_CLIENT_SECRET}".encode()
-    ).decode()
-
-    resp = requests.post(
-        token_url,
-        headers={
-            "Authorization": f"Basic {auth_header}",
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        data={
-            "client_id":  FITBIT_CLIENT_ID,
-            "grant_type": "authorization_code",
-            "redirect_uri": REDIRECT_URI,
-            "code": code,
-        },
-    )
-    data = resp.json()
-    if "access_token" in data:
-        data["_saved_at"] = time.time()
-        with open(TOKEN_FILE, "w") as f:
-            json.dump(data, f)
-        return {"message": "✅ Token sparad", "token_data": data}
-    raise HTTPException(status_code=400, detail=data)
-
 # -----------------------------------------------------------
-# Fitbit-helpers
+# Fitbit helpers
 # -----------------------------------------------------------
 def refresh_token_if_needed():
     if not os.path.exists(TOKEN_FILE):
         return None
-
     with open(TOKEN_FILE) as f:
         token_data = json.load(f)
 
-    exp_secs = token_data.get("expires_in", 28800)  # default 8 h
-    saved_at = token_data.get("_saved_at", 0)
-    if time.time() < saved_at + exp_secs - 60:
-        return token_data
+    exp = token_data.get("expires_in", 28800)
+    if time.time() < token_data.get("_saved_at", 0) + exp - 60:
+        return token_data  # fortfarande giltig
 
-    auth_header = base64.b64encode(f"{FITBIT_CLIENT_ID}:{FITBIT_CLIENT_SECRET}".encode()).decode()
+    hdr = base64.b64encode(f"{FITBIT_CLIENT_ID}:{FITBIT_CLIENT_SECRET}".encode()).decode()
     resp = requests.post(
         "https://api.fitbit.com/oauth2/token",
-        headers={
-            "Authorization": f"Basic {auth_header}",
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        data={
-            "grant_type": "refresh_token",
-            "refresh_token": token_data["refresh_token"],
-        },
+        headers={"Authorization": f"Basic {hdr}",
+                 "Content-Type": "application/x-www-form-urlencoded"},
+        data={"grant_type": "refresh_token",
+              "refresh_token": token_data["refresh_token"]},
     )
     if resp.status_code == 200:
-        new_token = resp.json()
-        new_token["_saved_at"] = time.time()
-        with open(TOKEN_FILE, "w") as f:
-            json.dump(new_token, f)
+        new_token = resp.json() | {"_saved_at": time.time()}
+        json.dump(new_token, open(TOKEN_FILE, "w"))
         return new_token
     return None
 
-def get_fitbit_data(resource_path, start_date, end_date):
-    token = refresh_token_if_needed()
-    if not token:
-        return {"error": "Ingen giltig token."}
-
-    headers = {"Authorization": f"Bearer {token['access_token']}"}
-    url = (
-        f"https://api.fitbit.com/1/user/-/"+
-        f"{resource_path}/date/{start_date}/{end_date}.json"
-    )
-    resp = requests.get(url, headers=headers)
-    if resp.status_code == 429:
-        time.sleep(int(resp.headers.get("Retry-After", 5)))
-        resp = requests.get(url, headers=headers)
+def get_fitbit_data(resource_path, start, end):
+    tok = refresh_token_if_needed()
+    if not tok:
+        return {"error": "Ingen token"}
+    hdr = {"Authorization": f"Bearer {tok['access_token']}"}
+    url = f"https://api.fitbit.com/1/user/-/{resource_path}/date/{start}/{end}.json"
+    r = requests.get(url, headers=hdr)
+    if r.status_code == 429:
+        time.sleep(int(r.headers.get("Retry-After", 5)))
+        r = requests.get(url, headers=hdr)
     try:
-        resp.raise_for_status()
-        return {"data": resp.json()}
+        r.raise_for_status()
+        return {"data": r.json()}
     except Exception as e:
         return {"error": str(e), "data": {}}
 
+# ---------- NY version ------------------------------------
 def get_activity_logs(date_str: str):
-    """Returnerar ENDAST aktiviteter som startat det givna datumet."""
-    token = refresh_token_if_needed()
-    if not token:
+    """Fitbit-pass som startar det datumet – oberoende av tidszon."""
+    tok = refresh_token_if_needed()
+    if not tok:
         return []
-    headers = {"Authorization": f"Bearer {token['access_token']}"}
-    url = (
-        "https://api.fitbit.com/1/user/-/activities/list.json"
-        f"?beforeDate={date_str}T23:59:59&sort=desc&limit=50&offset=0"
-    )
+    hdr = {"Authorization": f"Bearer {tok['access_token']}"}
+    url = ("https://api.fitbit.com/1/user/-/activities/list.json"
+           f"?afterDate={date_str}T00:00:00&sort=asc&limit=100&offset=0")
     try:
-        raw = requests.get(url, headers=headers).json().get("activities", [])
-        return [a for a in raw if a.get("originalStartTime", "").startswith(date_str)]
+        raw = requests.get(url, headers=hdr).json().get("activities", [])
+        return [a for a in raw
+                if dt_parse.isoparse(a["originalStartTime"]).date().isoformat() == date_str]
     except Exception:
         return []
 
-# ---------- Hjälpare: slå ihop manuella + Fitbit-pass -------
+# ---------- Hjälpare: slå ihop workouts -------------------
 def _combine_workouts(date_str: str) -> List[dict]:
-    """Returnerar lista av workouts där varje post har 'source'."""
     manual = [{**w, "source": "manual"} for w in get_workouts(date_str)]
     auto   = [{**a, "source": "fitbit"} for a in get_activity_logs(date_str)]
 
-    # Dublett-detektor: om starttiden skiljer <30 min mot manuellt pass → hoppa
-    def is_duplicate(auto_item):
-        auto_ts = dt.fromisoformat(auto_item["originalStartTime"][:-6])  # strip tz
+    def is_dup(auto_item):
+        auto_ts = dt_parse.isoparse(auto_item["originalStartTime"]).replace(tzinfo=None)
         for m in manual:
-            # Har manuellt pass exakt startTime? annars hoppa dupe-check
-            m_ts_str = m.get("startTime")  # manuellt pass kan sakna
+            m_ts_str = m.get("startTime")
             if not m_ts_str:
                 continue
             m_ts = dt.fromisoformat(m_ts_str)
@@ -297,116 +234,63 @@ def _combine_workouts(date_str: str) -> List[dict]:
                 return True
         return False
 
-    auto_filtered = [a for a in auto if not is_duplicate(a)]
-    return manual + auto_filtered
+    auto = [a for a in auto if not is_dup(a)]
+    return manual + auto
 
 # -----------------------------------------------------------
-# 📦 Daily summary – live för i dag
+# 📦 Daily summary
 # -----------------------------------------------------------
-_summary_cache = TTLCache(maxsize=64, ttl=300)  # 5 min-cache för historik
+_cache = TTLCache(maxsize=64, ttl=300)
 
-def _build_daily_summary(target_date: str, *, bypass_cache=False):
-    """Kallas av både endpoint och intern refreash efter POST."""
+def _build_daily_summary(date_str: str):
     return {
-        "date":     target_date,
-        "fitbit":   get_extended(target_date=target_date),
-        "meals":    get_meals(target_date),
-        "workouts": _combine_workouts(target_date),
+        "date":     date_str,
+        "fitbit":   get_extended(target_date=date_str),
+        "meals":    get_meals(date_str),
+        "workouts": _combine_workouts(date_str),
     }
 
-_cached_build = cached(_summary_cache)(_build_daily_summary)
+_cached = cached(_cache)(_build_daily_summary)
 
 @app.get("/daily-summary")
 def daily_summary(target_date: Optional[str] = None, fresh: bool = False):
     if not target_date:
         target_date = dt_date.today().isoformat()
-
-    is_today = (target_date == dt_date.today().isoformat())
-    if fresh or is_today:
+    if fresh or target_date == dt_date.today().isoformat():
         return _build_daily_summary(target_date)
+    return _cached(target_date)
 
-    return _cached_build(target_date)
-
-# ---------- Smala Fitbit-endpoints -------------------------
-@app.get("/data/steps")
-def get_steps(date: str):
-    return get_fitbit_data("activities/steps", date, date)
-
-@app.get("/data/sleep")
-def get_sleep(date: str):
-    return get_fitbit_data("sleep", date, date)
-
-@app.get("/data/heart")
-def get_heart(date: str):
-    return get_fitbit_data("activities/heart", date, date)
-
-@app.get("/data/calories")
-def get_calories(date: str):
-    return get_fitbit_data("activities/calories", date, date)
-
-# ---------- Sammanfattning --------------------------------
-@app.get("/data")
-def get_summary(days: int = 1):
-    today = dt_date.today()
-    start = (today - timedelta(days=days - 1)).isoformat()
-    end   = today.isoformat()
-    return {
-        "from": start,
-        "to":   end,
-        "steps":    get_fitbit_data("activities/steps",    start, end),
-        "calories": get_fitbit_data("activities/calories", start, end),
-        "sleep":    get_fitbit_data("sleep",               start, end),
-        "heart":    get_fitbit_data("activities/heart",    start, end),
-    }
-
-# ---------- Extended (Fitbit) ------------------------------
+# ---------- Extended FitBit only --------------------------
 @app.get("/data/extended")
 def get_extended(days: int = 1, target_date: Optional[str] = None):
     if target_date:
         start = end = target_date
     else:
-        today = dt_date.today()
-        start = (today - timedelta(days=days - 1)).isoformat()
-        end   = today.isoformat()
+        end   = dt_date.today().isoformat()
+        start = (dt_date.today() - timedelta(days=days - 1)).isoformat()
     return {
-        "from":   start,
-        "to":     end,
-        "steps":        get_fitbit_data("activities/steps",    start, end),
-        "calories":     get_fitbit_data("activities/calories", start, end),
-        "sleep":        get_fitbit_data("sleep",               start, end),
-        "heart":        get_fitbit_data("activities/heart",    start, end),
-        "weight":       get_fitbit_data("body/log/weight",     start, end),
-        "hrv":          get_fitbit_data("hrv",                 start, end),
+        "from": start, "to": end,
+        "steps":  get_fitbit_data("activities/steps",    start, end),
+        "calories": get_fitbit_data("activities/calories", start, end),
+        "sleep":  get_fitbit_data("sleep",               start, end),
+        "heart":  get_fitbit_data("activities/heart",    start, end),
+        "weight": get_fitbit_data("body/log/weight",     start, end),
+        "hrv":    get_fitbit_data("hrv",                 start, end),
     }
 
-# ---------- Extended FULL (Fitbit + Firestore) -------------
+# ---------- Extended FULL ---------------------------------
 @app.get("/data/extended/full")
 def get_extended_full(days: int = 1, fresh: bool = False):
-    """
-    Kombinerar Fitbit + Firestore + Fitbit-activity_logs per kalenderdag.
-    """
     if days < 1:
-        raise HTTPException(status_code=400, detail="days måste vara ≥ 1")
-
-    today  = dt_date.today()
-    start  = today - timedelta(days=days - 1)
-    dates  = [(start + timedelta(days=i)).isoformat() for i in range(days)]
+        raise HTTPException(400, "days ≥ 1")
+    today = dt_date.today()
+    dates = [(today - timedelta(days=i)).isoformat() for i in range(days)][::-1]
 
     out = {"from": dates[0], "to": dates[-1], "days": {}}
-
     for d in dates:
-        fb     = get_extended(target_date=d)                     # Fitbit-data
-        meals  = get_meals(d)
-        w_comb = _combine_workouts(d)
-
-        # Om fresh=true & d==idag → säkra live-data
-        if fresh and d == today.isoformat():
-            meals  = get_meals(d)            # redan live men för tydlighet
-            w_comb = _combine_workouts(d)
-
-        fb["meals"]    = meals
-        fb["workouts"] = w_comb
-        fb["activity_logs"] = get_activity_logs(d)  # rålista vid behov
+        fb = get_extended(target_date=d)
+        fb["meals"]    = get_meals(d)
+        fb["workouts"] = _combine_workouts(d)
+        fb["activity_logs"] = get_activity_logs(d)
         out["days"][d] = fb
-
     return out
