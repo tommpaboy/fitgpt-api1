@@ -7,9 +7,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from pydantic import BaseModel, Field
-from typing import Optional
-import requests, json, os, base64, time
-from datetime import date as dt_date, timedelta
+from typing import Optional, List
+import requests, json, os, base64, time, math
+from datetime import date as dt_date, timedelta, datetime as dt
 from cachetools import TTLCache, cached
 from dotenv import load_dotenv
 
@@ -123,7 +123,9 @@ def set_user_profile(profile: dict):
 def post_meal(entry: MealLog = Body(...)):
     doc_id = f"{entry.date}-{entry.meal.lower()}"
     db.collection("meals").document(doc_id).set(entry.dict(exclude_none=True))
-    return {"id": doc_id, "status": "stored"}
+    # returnera dagsdata direkt ⇢ GPT kan uppdatera sig utan extra anrop
+    return {"id": doc_id, "status": "stored",
+            "daily": _build_daily_summary(entry.date, bypass_cache=True)}
 
 @app.get("/log/meal")
 def get_meals(date: str):
@@ -146,7 +148,8 @@ def delete_meal(doc_id: str):
 @app.post("/log/workout", dependencies=[Depends(verify_auth)])
 def post_workout(entry: WorkoutLog = Body(...)):
     doc_ref = db.collection("workouts").add(entry.dict(by_alias=True, exclude_none=True))[1]
-    return {"id": doc_ref.id, "status": "stored"}
+    return {"id": doc_ref.id, "status": "stored",
+            "daily": _build_daily_summary(entry.date, bypass_cache=True)}
 
 @app.get("/log/workout")
 def get_workouts(date: str):
@@ -246,7 +249,7 @@ def get_fitbit_data(resource_path, start_date, end_date):
 
     headers = {"Authorization": f"Bearer {token['access_token']}"}
     url = (
-        f"https://api.fitbit.com/1/user/-/"
+        f"https://api.fitbit.com/1/user/-/"+
         f"{resource_path}/date/{start_date}/{end_date}.json"
     )
     resp = requests.get(url, headers=headers)
@@ -275,17 +278,40 @@ def get_activity_logs(date_str: str):
     except Exception:
         return []
 
+# ---------- Hjälpare: slå ihop manuella + Fitbit-pass -------
+def _combine_workouts(date_str: str) -> List[dict]:
+    """Returnerar lista av workouts där varje post har 'source'."""
+    manual = [{**w, "source": "manual"} for w in get_workouts(date_str)]
+    auto   = [{**a, "source": "fitbit"} for a in get_activity_logs(date_str)]
+
+    # Dublett-detektor: om starttiden skiljer <30 min mot manuellt pass → hoppa
+    def is_duplicate(auto_item):
+        auto_ts = dt.fromisoformat(auto_item["originalStartTime"][:-6])  # strip tz
+        for m in manual:
+            # Har manuellt pass exakt startTime? annars hoppa dupe-check
+            m_ts_str = m.get("startTime")  # manuellt pass kan sakna
+            if not m_ts_str:
+                continue
+            m_ts = dt.fromisoformat(m_ts_str)
+            if abs((auto_ts - m_ts).total_seconds()) < 1800:
+                return True
+        return False
+
+    auto_filtered = [a for a in auto if not is_duplicate(a)]
+    return manual + auto_filtered
+
 # -----------------------------------------------------------
 # 📦 Daily summary – live för i dag
 # -----------------------------------------------------------
 _summary_cache = TTLCache(maxsize=64, ttl=300)  # 5 min-cache för historik
 
-def _build_daily_summary(target_date: str):
+def _build_daily_summary(target_date: str, *, bypass_cache=False):
+    """Kallas av både endpoint och intern refreash efter POST."""
     return {
         "date":     target_date,
         "fitbit":   get_extended(target_date=target_date),
         "meals":    get_meals(target_date),
-        "workouts": get_workouts(target_date),
+        "workouts": _combine_workouts(target_date),
     }
 
 _cached_build = cached(_summary_cache)(_build_daily_summary)
@@ -350,7 +376,6 @@ def get_extended(days: int = 1, target_date: Optional[str] = None):
         "sleep":        get_fitbit_data("sleep",               start, end),
         "heart":        get_fitbit_data("activities/heart",    start, end),
         "weight":       get_fitbit_data("body/log/weight",     start, end),
-        "activity_logs": get_activity_logs(end),
         "hrv":          get_fitbit_data("hrv",                 start, end),
     }
 
@@ -358,36 +383,30 @@ def get_extended(days: int = 1, target_date: Optional[str] = None):
 @app.get("/data/extended/full")
 def get_extended_full(days: int = 1, fresh: bool = False):
     """
-    Kombinerar Fitbit extended + Firestore-måltider & workouts
-    + Fitbit activity_logs per kalenderdag.
+    Kombinerar Fitbit + Firestore + Fitbit-activity_logs per kalenderdag.
     """
     if days < 1:
         raise HTTPException(status_code=400, detail="days måste vara ≥ 1")
 
-    today = dt_date.today()
-    start = today - timedelta(days=days - 1)
-    dates = [(start + timedelta(days=i)).isoformat() for i in range(days)]
+    today  = dt_date.today()
+    start  = today - timedelta(days=days - 1)
+    dates  = [(start + timedelta(days=i)).isoformat() for i in range(days)]
 
-    # Fitbit-del dag för dag
-    fitbit_dict = {
-        d: get_extended(target_date=d)
-        for d in dates
-    }
+    out = {"from": dates[0], "to": dates[-1], "days": {}}
 
-    # Lägg till Firestore + egna activity_logs per dag
     for d in dates:
-        fitbit_dict[d]["meals"]       = get_meals(d)
-        fitbit_dict[d]["workouts"]    = get_workouts(d)
-        fitbit_dict[d]["activity_logs"] = get_activity_logs(d)
+        fb     = get_extended(target_date=d)                     # Fitbit-data
+        meals  = get_meals(d)
+        w_comb = _combine_workouts(d)
 
-        # Hoppa cache för *i dag* om fresh=true
+        # Om fresh=true & d==idag → säkra live-data
         if fresh and d == today.isoformat():
-            fitbit_dict[d]["meals"]       = get_meals(d)
-            fitbit_dict[d]["workouts"]    = get_workouts(d)
-            fitbit_dict[d]["activity_logs"] = get_activity_logs(d)
+            meals  = get_meals(d)            # redan live men för tydlighet
+            w_comb = _combine_workouts(d)
 
-    return {
-        "from": dates[0],
-        "to":   dates[-1],
-        "days": fitbit_dict
-    }
+        fb["meals"]    = meals
+        fb["workouts"] = w_comb
+        fb["activity_logs"] = get_activity_logs(d)  # rålista vid behov
+        out["days"][d] = fb
+
+    return out
