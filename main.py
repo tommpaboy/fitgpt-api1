@@ -381,7 +381,7 @@ def _combine_workouts(date_str: str) -> List[dict]:
 # -----------------------------------------------------------
 # 📦 Daily summary (cache 5 min)
 # -----------------------------------------------------------
-_cache = TTLCache(maxsize=64, ttl=300)
+_cache = TTLCache(maxsize=64, ttl=60)
 
 def _build_daily_summary(date_str: str, *, bypass_cache=False):
     return {
