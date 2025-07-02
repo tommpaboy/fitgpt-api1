@@ -16,7 +16,7 @@ from typing import Optional, List, Tuple
 import requests, json, os, base64, time, re
 from datetime import datetime as dt, timedelta
 from zoneinfo import ZoneInfo
-from cachetools import TTLCache, cached
+from cachetools import TTLCache          # <-- endast TTLCache behövs nu
 from dotenv import load_dotenv
 
 from google.oauth2 import service_account
@@ -171,7 +171,7 @@ def post_meal(entry: MealLog = Body(...)):
     doc_id = f"{entry.date}-{entry.meal.lower()}"
     db.collection("meals").document(doc_id).set(entry.dict(exclude_none=True))
     return {"id": doc_id, "status": "stored",
-            "daily": _build_daily_summary(entry.date, bypass_cache=True)}
+            "daily": _get_daily_summary(entry.date, force_fresh=True)}
 
 @app.get("/log/meal")
 def get_meals(date: str):
@@ -182,7 +182,7 @@ def get_meals(date: str):
 def put_meal(doc_id: str, entry: MealLog = Body(...)):
     db.collection("meals").document(doc_id).set(entry.dict(exclude_none=True))
     return {"id": doc_id, "status": "updated",
-            "daily": _build_daily_summary(entry.date, bypass_cache=True)}
+            "daily": _get_daily_summary(entry.date, force_fresh=True)}
 
 @app.delete("/log/meal/{doc_id}", dependencies=[Depends(verify_auth)])
 def del_meal(doc_id: str):
@@ -308,7 +308,7 @@ def post_workout(entry: WorkoutLog = Body(...)):
     doc_ref = db.collection("workouts").add(entry.dict(by_alias=True, exclude_none=True))[1]
     return {"id": doc_ref.id, "status": "stored",
             "needs_confirmation": confirm,
-            "daily": _build_daily_summary(entry.date, bypass_cache=True)}
+            "daily": _get_daily_summary(entry.date, force_fresh=True)}
 
 @app.get("/log/workout")
 def get_workouts(date: str):
@@ -319,7 +319,7 @@ def get_workouts(date: str):
 def put_workout(doc_id: str, entry: WorkoutLog = Body(...)):
     db.collection("workouts").document(doc_id).set(entry.dict(by_alias=True, exclude_none=True))
     return {"id": doc_id, "status": "updated",
-            "daily": _build_daily_summary(entry.date, bypass_cache=True)}
+            "daily": _get_daily_summary(entry.date, force_fresh=True)}
 
 @app.delete("/log/workout/{doc_id}", dependencies=[Depends(verify_auth)])
 def del_workout(doc_id: str):
@@ -380,65 +380,74 @@ def _combine_workouts(date_str: str) -> List[dict]:
     return merged
 
 # -----------------------------------------------------------
-# 📦 Daily summary (cache 1 min)
+# 📦 Daily summary – exakt kcal_out + smart cache
 # -----------------------------------------------------------
-_cache = TTLCache(maxsize=64, ttl=60)
+_daily_cache = TTLCache(maxsize=64, ttl=60)  # 60 s
 
 def _sum_calories(meal_docs: List[dict]) -> int:
     return sum(m.get("estimated_calories", 0) or 0 for m in meal_docs)
 
-def _extract_daily_kcal_out(calorie_blob: dict) -> Optional[int]:
+def _extract_daily_kcal_out(calorie_blob: dict) -> Tuple[Optional[int], bool]:
     """
-    Försök hämta exakt värde ur Fitbit‐blobben oavsett om .data-nivån finns.
+    Returnerar (kcal_out, is_estimate)
+    is_estimate == False  → värdet kommer direkt från Fitbit
+    is_estimate == True   → Fitbit saknade siffran, vi gissar senare
     """
     try:
-        # ibland ligger listan direkt under blob -> activities-calories
-        if "activities-calories" in calorie_blob:
-            return int(calorie_blob["activities-calories"][0]["value"])
-        return int(
-            calorie_blob["data"]["activities-calories"][0]["value"]
-        )
+        acts = calorie_blob.get("activities-calories") \
+               or calorie_blob["data"]["activities-calories"]
+        return int(acts[0]["value"]), False
     except Exception:
-        return None
+        return None, True
 
 def _estimate_kcal_out(fitbit: dict, default_bmr: int = 1800) -> int:
-    """Grov uppskattning: BMR + 0.04 kcal per steg."""
+    """BMR + 0.04 kcal per steg (grov uppskattning)."""
     try:
-        raw_steps = fitbit.get("steps", {}).get("data", {}).get("activities-steps", [])
-        steps = int(raw_steps[0]["value"]) if raw_steps else 0
+        steps_raw = fitbit["steps"]["data"]["activities-steps"]
+        steps = int(steps_raw[0]["value"])
     except Exception:
         steps = 0
     return int(default_bmr + 0.04 * steps)
 
-def _build_daily_summary(date_str: str, *, bypass_cache=False):
-    meals     = get_meals(date_str)
-    workouts  = _combine_workouts(date_str)
-    fitbit    = get_extended(target_date=date_str)
+def _build_daily_summary(date_str: str) -> dict:
+    meals    = get_meals(date_str)
+    workouts = _combine_workouts(date_str)
+    fitbit   = get_extended(target_date=date_str)
 
-    kcal_in  = _sum_calories(meals)
-    kcal_out = _extract_daily_kcal_out(fitbit.get("calories", {}))
-
-    if kcal_out is None:
+    kcal_in, (kcal_out, guessed) = _sum_calories(meals), _extract_daily_kcal_out(fitbit.get("calories", {}))
+    if guessed:
         kcal_out = _estimate_kcal_out(fitbit)
 
     return {
-        "date":      date_str,
-        "kcal_in":   kcal_in,
-        "kcal_out":  kcal_out,
-        "meals":     meals,
-        "workouts":  workouts,
-        "fitbit":    fitbit,
+        "date":        date_str,
+        "kcal_in":     kcal_in,
+        "kcal_out":    kcal_out,
+        "is_estimate": guessed,
+        "meals":       meals,
+        "workouts":    workouts,
+        "fitbit":      fitbit,
     }
 
-_cached = cached(_cache)(_build_daily_summary)
+def _get_daily_summary(date_str: str, *, force_fresh: bool = False) -> dict:
+    if not force_fresh and date_str in _daily_cache:
+        return _daily_cache[date_str]
+
+    summary = _build_daily_summary(date_str)
+
+    # Cachar endast exakta värden
+    if not summary["is_estimate"]:
+        _daily_cache[date_str] = summary
+    return summary
 
 @app.get("/daily-summary")
 def daily_summary(target_date: Optional[str] = None, fresh: bool = False):
+    """
+    • target_date utelämnad → idag (svensk tid)
+    • fresh=true            → hoppa cachen
+    """
     if not target_date:
         target_date = dt.now(SE_TZ).date().isoformat()
-    if fresh or target_date == dt.now(SE_TZ).date().isoformat():
-        return _build_daily_summary(target_date)
-    return _cached(target_date)
+    return _get_daily_summary(target_date, force_fresh=fresh)
 
 # -----------------------------------------------------------
 # 🔄 Små Fitbit-proxy-endpoints
@@ -494,5 +503,5 @@ def get_extended_full(days: int = 1, fresh: bool = False):
 
     out = {"from": dates[0], "to": dates[-1], "days": {}}
     for d in dates:
-        out["days"][d] = _build_daily_summary(d, bypass_cache=fresh)
+        out["days"][d] = _get_daily_summary(d, force_fresh=fresh)
     return out
