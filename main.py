@@ -447,23 +447,21 @@ def get_extended(days: int = 1, target_date: Optional[str] = None):
 @app.get("/data/extended/full")
 def get_extended_full(days: int = 1, fresh: bool = False):
     """
-    Returnerar en dict:
-    {
-      "from": <ISO>,
-      "to": <ISO>,
-      "days": {
-         "<YYYY-MM-DD>": {
+    Returnerar:
+      {
+        "from": <ISO>,
+        "to": <ISO>,
+        "days": {
+          "<YYYY-MM-DD>": {
             "date": ...,
             "fitbit": {...},
             "meals": [...],
             "workouts": [...]
-         },
-         ...
+          }, ...
+        }
       }
-    }
-
-    • days >=1
-    • Om fresh=true → hoppa cache för *samtliga* dagar (inte bara idag)
+    • days ≥ 1
+    • fresh=true → hoppa cache för samtliga dagar
     """
     if days < 1:
         raise HTTPException(status_code=400, detail="days måste vara ≥ 1")
@@ -476,4 +474,3 @@ def get_extended_full(days: int = 1, fresh: bool = False):
     for d in dates:
         out["days"][d] = _build_daily_summary(d, bypass_cache=fresh)
     return out
-
