@@ -442,28 +442,38 @@ def get_extended(days: int = 1, target_date: Optional[str] = None):
     }
 
 # -----------------------------------------------------------
-# 🧩 Extended FULL (Fitbit + Firestore)
+# 🧩 Extended FULL (Fitbit + Firestore) – alltid färsk vid fresh=true
 # -----------------------------------------------------------
 @app.get("/data/extended/full")
 def get_extended_full(days: int = 1, fresh: bool = False):
+    """
+    Returnerar en dict:
+    {
+      "from": <ISO>,
+      "to": <ISO>,
+      "days": {
+         "<YYYY-MM-DD>": {
+            "date": ...,
+            "fitbit": {...},
+            "meals": [...],
+            "workouts": [...]
+         },
+         ...
+      }
+    }
+
+    • days >=1
+    • Om fresh=true → hoppa cache för *samtliga* dagar (inte bara idag)
+    """
     if days < 1:
         raise HTTPException(status_code=400, detail="days måste vara ≥ 1")
 
-    today = dt.now(SE_TZ).date()                               # ← ÄNDRAD
+    today      = dt.now(SE_TZ).date()
     start_date = today - timedelta(days=days - 1)
-    dates = [(start_date + timedelta(days=i)).isoformat() for i in range(days)]
+    dates      = [(start_date + timedelta(days=i)).isoformat() for i in range(days)]
 
     out = {"from": dates[0], "to": dates[-1], "days": {}}
     for d in dates:
-        fb = get_extended(target_date=d)
-        out["days"][d] = {
-            **fb,
-            "meals": get_meals(d),
-            "workouts": _combine_workouts(d),
-            "activity_logs": get_activity_logs(d),
-        }
-        if fresh and d == today.isoformat():
-            out["days"][d]["meals"] = get_meals(d)
-            out["days"][d]["workouts"] = _combine_workouts(d)
-            out["days"][d]["activity_logs"] = get_activity_logs(d)
+        out["days"][d] = _build_daily_summary(d, bypass_cache=fresh)
     return out
+
