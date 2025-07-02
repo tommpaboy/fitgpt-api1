@@ -2,8 +2,9 @@ openapi: 3.1.0
 
 info:
   title: FitGPT API
-  version: "1.4.1"
-  description: End-points för Fitbit-data samt manuellt loggade måltider & träningspass.
+  version: "1.4.2"
+  description: |
+    End-points för Fitbit-data plus manuellt loggade måltider & träningspass.
 
 servers:
   - url: https://fitgpt-2364.onrender.com
@@ -14,24 +15,18 @@ paths:
       summary: Samlad dagsdata (Fitbit + Firestore)
       operationId: getDailySummary
       parameters:
-        - name: target_date          # ex. 2025-07-02
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date
-        - name: fresh                # true = hoppa cache
-          in: query
-          required: false
-          schema:
-            type: boolean
+        - in: query
+          name: target_date
+          description: YYYY-MM-DD (default = idag)
+          schema: {type: string, format: date}
+        - in: query
+          name: fresh
+          description: true → hoppa cache
+          schema: {type: boolean}
       responses:
         "200":
-          description: Dagsdata
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+          description: OK
+          content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}
       x-openai-isConsequential: false
 
   /data/extended/full:
@@ -39,200 +34,116 @@ paths:
       summary: Fitbit + Firestore för flera dagar
       operationId: getExtendedFull
       parameters:
-        - name: days
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-        - name: fresh
-          in: query
-          required: false
-          schema:
-            type: boolean
+        - in: query
+          name: days
+          schema: {type: integer, minimum: 1, default: 1}
+        - in: query
+          name: fresh
+          schema: {type: boolean}
       responses:
         "200":
-          description: Datum-nycklad intervall-data
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  from: {type: string, format: date}
-                  to:   {type: string, format: date}
-                  days:
-                    type: object
-                    additionalProperties:
-                      $ref: '#/components/schemas/GenericObject'
+          description: OK
+          content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}
       x-openai-isConsequential: false
 
-  # ──────────────── MÅLTIDER ──────────────────────────────
+  # ───────────── MÅLTIDER ─────────────────────────
   /log/meal:
     post:
       summary: Logga måltid
       operationId: postMeal
       requestBody:
         required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MealLog'
+        content: {application/json: {schema: {$ref: '#/components/schemas/MealLog'}}}
       responses:
-        "200":
-          description: Sparad post
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
       x-openai-isConsequential: true
-
     get:
       summary: Hämta måltider för datum
       operationId: getMeals
       parameters:
-        - name: date
-          in: query
+        - in: query
+          name: date
           required: true
-          schema:
-            type: string
-            format: date
+          schema: {type: string, format: date}
       responses:
-        "200":
-          description: Lista av måltider
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/MealLog'
+        "200": {description: OK, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/MealLog'}}}}}
       x-openai-isConsequential: false
 
   /log/meal/{id}:
     put:
-      summary: Uppdatera en måltid
+      summary: Uppdatera måltid
       operationId: putMeal
       parameters:
-        - name: id
-          in: path
+        - in: path
+          name: id
           required: true
-          schema:
-            type: string
+          schema: {type: string}
       requestBody:
         required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MealLog'
+        content: {application/json: {schema: {$ref: '#/components/schemas/MealLog'}}}
       responses:
-        "200":
-          description: Uppdaterad post
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
       x-openai-isConsequential: true
-
     delete:
-      summary: Ta bort en måltid
+      summary: Ta bort måltid
       operationId: deleteMeal
       parameters:
-        - name: id
-          in: path
+        - in: path
+          name: id
           required: true
-          schema:
-            type: string
+          schema: {type: string}
       responses:
-        "200":
-          description: Borttagen post
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
       x-openai-isConsequential: true
 
-  # ──────────────── TRÄNINGSPASS ──────────────────────────
+  # ────────── TRÄNINGSPASS ────────────────────────
   /log/workout:
     post:
       summary: Logga träningspass
       operationId: postWorkout
       requestBody:
         required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkoutLog'
+        content: {application/json: {schema: {$ref: '#/components/schemas/WorkoutLog'}}}
       responses:
-        "200":
-          description: Sparad post
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
       x-openai-isConsequential: true
-
     get:
       summary: Hämta pass för datum
       operationId: getWorkouts
       parameters:
-        - name: date
-          in: query
+        - in: query
+          name: date
           required: true
-          schema:
-            type: string
-            format: date
+          schema: {type: string, format: date}
       responses:
-        "200":
-          description: Lista av pass
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/WorkoutLog'
+        "200": {description: OK, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/WorkoutLog'}}}}}
       x-openai-isConsequential: false
 
   /log/workout/{id}:
     put:
-      summary: Uppdatera ett träningspass
+      summary: Uppdatera träningspass
       operationId: putWorkout
       parameters:
-        - name: id
-          in: path
+        - in: path
+          name: id
           required: true
-          schema:
-            type: string
+          schema: {type: string}
       requestBody:
         required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkoutLog'
+        content: {application/json: {schema: {$ref: '#/components/schemas/WorkoutLog'}}}
       responses:
-        "200":
-          description: Uppdaterad post
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
       x-openai-isConsequential: true
-
     delete:
-      summary: Ta bort ett träningspass
+      summary: Ta bort träningspass
       operationId: deleteWorkout
       parameters:
-        - name: id
-          in: path
+        - in: path
+          name: id
           required: true
-          schema:
-            type: string
+          schema: {type: string}
       responses:
-        "200":
-          description: Borttagen post
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
       x-openai-isConsequential: true
 
 components:
