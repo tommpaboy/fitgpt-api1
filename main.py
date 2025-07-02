@@ -1,9 +1,7 @@
 # -----------------------------------------------------------
-# 🏋️‍♂️ FitGPT – main.py
+# 🏋️‍♂️ FitGPT – main.py  (Svensk tidszon + full funktion)
 # -----------------------------------------------------------
-# Kombinerar Fitbit-data och manuellt loggade måltider/träningspass.
-# • Automatisk dubbelt­detektering (±30 min) och hopslagning av pass
-# • Gissar starttid för manuella pass om du inte anger någon
+# Kombinerar Fitbit-data och manuella måltider/träningspass.
 # -----------------------------------------------------------
 
 # 🚀 Imports
@@ -16,7 +14,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional, List, Tuple
 import requests, json, os, base64, time, re
-from datetime import date as dt_date, timedelta, datetime as dt
+from datetime import datetime as dt, timedelta, date as dt_date
+from zoneinfo import ZoneInfo          # ← NYTT
 from cachetools import TTLCache, cached
 from dotenv import load_dotenv
 
@@ -24,9 +23,10 @@ from google.oauth2 import service_account
 from google.cloud import firestore
 
 # -----------------------------------------------------------
-# 🌱 Init & miljö­variabler
+# 🌱 Init & miljövariabler
 # -----------------------------------------------------------
 load_dotenv()
+SE_TZ = ZoneInfo("Europe/Stockholm")   # ← NYTT
 
 FITBIT_CLIENT_ID     = os.getenv("FITBIT_CLIENT_ID")
 FITBIT_CLIENT_SECRET = os.getenv("FITBIT_CLIENT_SECRET")
@@ -39,7 +39,6 @@ PROFILE_FILE         = "user_profile.json"
 # -----------------------------------------------------------
 app = FastAPI(title="FitGPT API")
 app.mount("/.well-known", StaticFiles(directory=".well-known"), name="well-known")
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://chat.openai.com"],
@@ -68,14 +67,11 @@ class WorkoutLog(BaseModel):
     date: str
     workout_type: str
     details: str
-    # Tid är frivillig – fylls i automatiskt om möjligt
     start_time: Optional[str] = Field(
-        None,
-        alias="startTime",
-        description="ISO-tid (YYYY-MM-DDTHH:MM:SS). Lämna tomt så försöker FitGPT gissa."
+        None, alias="startTime",
+        description="ISO-tid (YYYY-MM-DDTHH:MM:SS). Tomt ⇒ FitGPT gissar."
     )
-    # Bakåt­kompatibilitet med äldre klienter
-    type: Optional[str] = Field(None, alias="workout_type")
+    type: Optional[str] = Field(None, alias="workout_type")  # bakåtkomp.
 
     class Config:
         allow_population_by_field_name = True
@@ -84,7 +80,7 @@ class WorkoutLog(BaseModel):
 # 🔒 Valfri API-nyckel
 # -----------------------------------------------------------
 def verify_auth(request: Request):
-    required = os.getenv("API_KEY")           # tom = auth av
+    required = os.getenv("API_KEY")      # tom = auth av
     if not required:
         return
     token = request.headers.get("authorization")
@@ -98,10 +94,8 @@ def verify_auth(request: Request):
 def home():
     return (
         "<h1>FitGPT-API 🚀</h1>"
-        "<ul>"
-        "<li><a href='/authorize'>Logga in med Fitbit</a></li>"
-        "<li><a href='/docs'>Swagger-dokumentation</a></li>"
-        "</ul>"
+        "<ul><li><a href='/authorize'>Logga in med Fitbit</a></li>"
+        "<li><a href='/docs'>Swagger-dokumentation</a></li></ul>"
     )
 
 # -----------------------------------------------------------
@@ -125,10 +119,8 @@ def callback(code: str):
 
     resp = requests.post(
         token_url,
-        headers={
-            "Authorization": f"Basic {auth_header}",
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
+        headers={"Authorization": f"Basic {auth_header}",
+                 "Content-Type": "application/x-www-form-urlencoded"},
         data={
             "client_id":  FITBIT_CLIENT_ID,
             "grant_type": "authorization_code",
@@ -178,11 +170,8 @@ def set_profile(profile: dict):
 def post_meal(entry: MealLog = Body(...)):
     doc_id = f"{entry.date}-{entry.meal.lower()}"
     db.collection("meals").document(doc_id).set(entry.dict(exclude_none=True))
-    return {
-        "id": doc_id,
-        "status": "stored",
-        "daily": _build_daily_summary(entry.date, bypass_cache=True),
-    }
+    return {"id": doc_id, "status": "stored",
+            "daily": _build_daily_summary(entry.date, bypass_cache=True)}
 
 @app.get("/log/meal")
 def get_meals(date: str):
@@ -192,11 +181,8 @@ def get_meals(date: str):
 @app.put("/log/meal/{doc_id}", dependencies=[Depends(verify_auth)])
 def put_meal(doc_id: str, entry: MealLog = Body(...)):
     db.collection("meals").document(doc_id).set(entry.dict(exclude_none=True))
-    return {
-        "id": doc_id,
-        "status": "updated",
-        "daily": _build_daily_summary(entry.date, bypass_cache=True),
-    }
+    return {"id": doc_id, "status": "updated",
+            "daily": _build_daily_summary(entry.date, bypass_cache=True)}
 
 @app.delete("/log/meal/{doc_id}", dependencies=[Depends(verify_auth)])
 def del_meal(doc_id: str):
@@ -204,23 +190,16 @@ def del_meal(doc_id: str):
     return {"id": doc_id, "status": "deleted"}
 
 # -----------------------------------------------------------
-# 🕒 Hjälp­funktioner: duration & matchning
+# 🕒 Hjälp­funktioner – duration & matchning
 # -----------------------------------------------------------
 def _extract_duration_min(text: str) -> Optional[int]:
-    """Plockar ut '30 min', '45min' etc → 30."""
     if not text:
         return None
     m = re.search(r"(\d+)\s*(?:min|\bmins?\b|\bm\b)", text.lower())
     return int(m.group(1)) if m else None
 
 
-def _guess_auto_match(
-    m_entry: dict, auto_logs: List[dict], used_idx: set
-) -> Tuple[Optional[int], float]:
-    """
-    Gissa vilket Fitbit-pass som hör ihop med ett manuellt:
-    Returnerar index + confidence (0-1).
-    """
+def _guess_auto_match(m_entry: dict, auto_logs: List[dict], used_idx: set) -> Tuple[Optional[int], float]:
     dur_m = _extract_duration_min(m_entry.get("details", "")) or None
     wt_m  = m_entry.get("workout_type", "").lower()
 
@@ -231,24 +210,18 @@ def _guess_auto_match(
         name = a.get("activityName", "").lower()
         score = 0.0
 
-        # Namnmatchning
         if wt_m and wt_m in name:
             score += 0.6
         elif name and name in wt_m:
             score += 0.4
 
-        # Duration-matchning
-        dur_a = a.get("duration", 0) / 60000  # ms → minuter
+        dur_a = a.get("duration", 0) / 60000
         if dur_m:
             diff = abs(dur_a - dur_m) / max(dur_a, dur_m, 1)
-            if diff <= 0.05:
-                score += 0.4
-            elif diff <= 0.15:
-                score += 0.2
+            score += 0.4 if diff <= 0.05 else 0.2 if diff <= 0.15 else 0.0
 
         if score > best_score:
             best_idx, best_score = idx, score
-
     return best_idx, best_score
 
 # -----------------------------------------------------------
@@ -268,14 +241,10 @@ def refresh_token_if_needed():
     auth_header = base64.b64encode(f"{FITBIT_CLIENT_ID}:{FITBIT_CLIENT_SECRET}".encode()).decode()
     resp = requests.post(
         "https://api.fitbit.com/oauth2/token",
-        headers={
-            "Authorization": f"Basic {auth_header}",
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        data={
-            "grant_type": "refresh_token",
-            "refresh_token": token_data["refresh_token"],
-        },
+        headers={"Authorization": f"Basic {auth_header}",
+                 "Content-Type": "application/x-www-form-urlencoded"},
+        data={"grant_type": "refresh_token",
+              "refresh_token": token_data["refresh_token"]},
     )
     if resp.status_code == 200:
         new_token = resp.json()
@@ -305,15 +274,12 @@ def get_fitbit_data(resource_path, start_date, end_date):
 
 
 def get_activity_logs(date_str: str) -> List[dict]:
-    """Returnerar ENDAST Fitbit-pass som startat det givna datumet."""
     token = refresh_token_if_needed()
     if not token:
         return []
     headers = {"Authorization": f"Bearer {token['access_token']}"}
-    url = (
-        "https://api.fitbit.com/1/user/-/activities/list.json"
-        f"?beforeDate={date_str}T23:59:59&sort=desc&limit=50&offset=0"
-    )
+    url = ("https://api.fitbit.com/1/user/-/activities/list.json"
+           f"?beforeDate={date_str}T23:59:59&sort=desc&limit=50&offset=0")
     try:
         raw = requests.get(url, headers=headers).json().get("activities", [])
         return [a for a in raw if a.get("originalStartTime", "").startswith(date_str)]
@@ -324,13 +290,12 @@ def get_activity_logs(date_str: str) -> List[dict]:
 # 🔥 Firestore – TRÄNINGSPASS
 # -----------------------------------------------------------
 def _infer_start_time(entry: WorkoutLog) -> Tuple[Optional[str], bool]:
-    """Gissa starttid från Fitbit-loggen. Returnerar (tid, behöver_fråga?)."""
     auto_logs = get_activity_logs(entry.date)
     idx, conf = _guess_auto_match(entry.dict(exclude_none=True), auto_logs, set())
     if idx is not None and (conf >= 0.8 or (conf >= 0.6 and len(auto_logs) == 1)):
-        start_iso = auto_logs[idx]["originalStartTime"][:-6]  # utan tidszon
+        start_iso = auto_logs[idx]["originalStartTime"][:-6]
         return start_iso, False
-    return None, True  # behöver fråga användaren
+    return None, True
 
 @app.post("/log/workout", dependencies=[Depends(verify_auth)])
 def post_workout(entry: WorkoutLog = Body(...)):
@@ -341,12 +306,9 @@ def post_workout(entry: WorkoutLog = Body(...)):
             entry.start_time = guessed
 
     doc_ref = db.collection("workouts").add(entry.dict(by_alias=True, exclude_none=True))[1]
-    return {
-        "id": doc_ref.id,
-        "status": "stored",
-        "needs_confirmation": confirm,
-        "daily": _build_daily_summary(entry.date, bypass_cache=True),
-    }
+    return {"id": doc_ref.id, "status": "stored",
+            "needs_confirmation": confirm,
+            "daily": _build_daily_summary(entry.date, bypass_cache=True)}
 
 @app.get("/log/workout")
 def get_workouts(date: str):
@@ -356,11 +318,8 @@ def get_workouts(date: str):
 @app.put("/log/workout/{doc_id}", dependencies=[Depends(verify_auth)])
 def put_workout(doc_id: str, entry: WorkoutLog = Body(...)):
     db.collection("workouts").document(doc_id).set(entry.dict(by_alias=True, exclude_none=True))
-    return {
-        "id": doc_id,
-        "status": "updated",
-        "daily": _build_daily_summary(entry.date, bypass_cache=True),
-    }
+    return {"id": doc_id, "status": "updated",
+            "daily": _build_daily_summary(entry.date, bypass_cache=True)}
 
 @app.delete("/log/workout/{doc_id}", dependencies=[Depends(verify_auth)])
 def del_workout(doc_id: str):
@@ -377,8 +336,7 @@ def _combine_workouts(date_str: str) -> List[dict]:
     auto_raw = get_activity_logs(date_str)
     auto = [{**a, "source": "fitbit"} for a in auto_raw]
 
-    merged: List[dict] = []
-    used_auto = set()
+    merged, used_auto = [], set()
 
     # 1. Matcha manuella med start_time
     for m in manual:
@@ -388,8 +346,7 @@ def _combine_workouts(date_str: str) -> List[dict]:
         try:
             m_ts = dt.fromisoformat(st)
         except Exception:
-            merged.append(m)
-            continue
+            merged.append(m); continue
 
         matched = False
         for idx, a in enumerate(auto):
@@ -417,12 +374,12 @@ def _combine_workouts(date_str: str) -> List[dict]:
         else:
             merged.append({**m, "needs_confirmation": True})
 
-    # 3. Lägg till kvarvarande Fitbit-pass
+    # 3. Kvarvarande Fitbit-pass
     merged.extend([a for i, a in enumerate(auto) if i not in used_auto])
     return merged
 
 # -----------------------------------------------------------
-# 📦 Daily summary (+ cache 5 min)
+# 📦 Daily summary (cache 5 min)
 # -----------------------------------------------------------
 _cache = TTLCache(maxsize=64, ttl=300)
 
@@ -439,8 +396,8 @@ _cached = cached(_cache)(_build_daily_summary)
 @app.get("/daily-summary")
 def daily_summary(target_date: Optional[str] = None, fresh: bool = False):
     if not target_date:
-        target_date = dt_date.today().isoformat()
-    if fresh or target_date == dt_date.today().isoformat():
+        target_date = dt.now(SE_TZ).date().isoformat()          # ← ÄNDRAD
+    if fresh or target_date == dt.now(SE_TZ).date().isoformat():
         return _build_daily_summary(target_date)
     return _cached(target_date)
 
@@ -471,12 +428,11 @@ def get_extended(days: int = 1, target_date: Optional[str] = None):
     if target_date:
         start = end = target_date
     else:
-        today = dt_date.today()
+        today = dt.now(SE_TZ).date()                           # ← ÄNDRAD
         start = (today - timedelta(days=days - 1)).isoformat()
         end = today.isoformat()
     return {
-        "from": start,
-        "to": end,
+        "from": start, "to": end,
         "steps": get_fitbit_data("activities/steps", start, end),
         "calories": get_fitbit_data("activities/calories", start, end),
         "sleep": get_fitbit_data("sleep", start, end),
@@ -493,7 +449,7 @@ def get_extended_full(days: int = 1, fresh: bool = False):
     if days < 1:
         raise HTTPException(status_code=400, detail="days måste vara ≥ 1")
 
-    today = dt_date.today()
+    today = dt.now(SE_TZ).date()                               # ← ÄNDRAD
     start_date = today - timedelta(days=days - 1)
     dates = [(start_date + timedelta(days=i)).isoformat() for i in range(days)]
 
