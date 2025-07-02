@@ -359,25 +359,35 @@ def get_extended(days: int = 1, target_date: Optional[str] = None):
 def get_extended_full(days: int = 1, fresh: bool = False):
     """
     Kombinerar Fitbit extended + Firestore-måltider & workouts
-    för 'days' bakåt inkl. i dag.
+    + Fitbit activity_logs per kalenderdag.
     """
     if days < 1:
         raise HTTPException(status_code=400, detail="days måste vara ≥ 1")
-
-    fitbit_part = get_extended(days=days)     # Fitbit-data
 
     today = dt_date.today()
     start = today - timedelta(days=days - 1)
     dates = [(start + timedelta(days=i)).isoformat() for i in range(days)]
 
-    meals_dict    = {d: get_meals(d)    for d in dates}
-    workouts_dict = {d: get_workouts(d) for d in dates}
+    # Fitbit-del dag för dag
+    fitbit_dict = {
+        d: get_extended(target_date=d)
+        for d in dates
+    }
 
-    # Hoppa cache för i dag om fresh=true
-    if fresh and today.isoformat() in dates:
-        meals_dict[today.isoformat()]    = get_meals(today.isoformat())
-        workouts_dict[today.isoformat()] = get_workouts(today.isoformat())
+    # Lägg till Firestore + egna activity_logs per dag
+    for d in dates:
+        fitbit_dict[d]["meals"]       = get_meals(d)
+        fitbit_dict[d]["workouts"]    = get_workouts(d)
+        fitbit_dict[d]["activity_logs"] = get_activity_logs(d)
 
-    fitbit_part["meals"]    = meals_dict
-    fitbit_part["workouts"] = workouts_dict
-    return fitbit_part
+        # Hoppa cache för *i dag* om fresh=true
+        if fresh and d == today.isoformat():
+            fitbit_dict[d]["meals"]       = get_meals(d)
+            fitbit_dict[d]["workouts"]    = get_workouts(d)
+            fitbit_dict[d]["activity_logs"] = get_activity_logs(d)
+
+    return {
+        "from": dates[0],
+        "to":   dates[-1],
+        "days": fitbit_dict
+    }
