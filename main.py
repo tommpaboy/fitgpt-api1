@@ -96,9 +96,11 @@ def verify_auth(request: Request):
         raise HTTPException(status_code=401, detail="Missing/invalid token")
 
 # -----------------------------------------------------------
-# 🌐 UI & profil
+# 🌐 UI, profil & Fitbit-inloggning
 # -----------------------------------------------------------
-@app.get("/", response_class=HTMLResponse)
+
+# ——— startsida -------------------------------------------------
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
 def home():
     return (
         "<h1>FitGPT-API 🚀</h1>"
@@ -106,16 +108,60 @@ def home():
         "<p><a href='/docs'>Swagger</a></p>"
     )
 
+# ——— användarprofil (lokalt JSON-minne) ------------------------
 @app.get("/user_profile")
 def get_user_profile():
+    """Hämta lokalt sparad profil (namn, mål, mm)."""
     return load_profile()
 
 @app.post("/user_profile")
 def set_user_profile(profile: dict):
+    """Spara/uppdatera lokal profil."""
     if not isinstance(profile, dict):
-        raise HTTPException(status_code=400, detail="Body måste vara ett JSON-objekt.")
+        raise HTTPException(400, "Body måste vara ett JSON-objekt.")
     save_profile(profile)
     return {"message": "✅ Profil sparad!", "profile": profile}
+
+# ——— Fitbit OAuth: steg 1 (redirect) ---------------------------
+@app.get("/authorize", include_in_schema=False)
+def authorize():
+    url = (
+        "https://www.fitbit.com/oauth2/authorize?response_type=code"
+        f"&client_id={FITBIT_CLIENT_ID}"
+        f"&redirect_uri={REDIRECT_URI}"
+        "&scope=activity%20nutrition%20sleep%20heartrate%20weight%20location%20profile"
+    )
+    return RedirectResponse(url)
+
+# ——— Fitbit OAuth: steg 2 (callback) ---------------------------
+@app.get("/callback", include_in_schema=False)
+def callback(code: str):
+    """Växlar auth-code mot access- & refresh-token och sparar till fil."""
+    token_url = "https://api.fitbit.com/oauth2/token"
+    hdr       = base64.b64encode(
+        f"{FITBIT_CLIENT_ID}:{FITBIT_CLIENT_SECRET}".encode()
+    ).decode()
+
+    resp = requests.post(
+        token_url,
+        headers={
+            "Authorization": f"Basic {hdr}",
+            "Content-Type":  "application/x-www-form-urlencoded",
+        },
+        data={
+            "client_id":  FITBIT_CLIENT_ID,
+            "grant_type": "authorization_code",
+            "redirect_uri": REDIRECT_URI,
+            "code": code,
+        },
+    )
+    data = resp.json()
+    if "access_token" in data:
+        data["_saved_at"] = time.time()
+        json.dump(data, open(TOKEN_FILE, "w"))
+        return {"message": "✅ Token sparad", "token_data": data}
+
+    raise HTTPException(status_code=400, detail=data)
 
 # -----------------------------------------------------------
 # 🔥 Firestore – måltider
