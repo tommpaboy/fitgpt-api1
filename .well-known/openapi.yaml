@@ -34,7 +34,7 @@ paths:
                 $ref: '#/components/schemas/GenericObject'
       x-openai-isConsequential: false
 
-  /data/extended/full:
+   /data/extended/full:
     get:
       summary: Fitbit + Firestore för flera dagar
       operationId: getExtendedFull
@@ -46,19 +46,27 @@ paths:
             type: integer
             minimum: 1
             default: 1
-        - name: fresh         # hoppa cache för dagens datum
+        - name: fresh
           in: query
           required: false
           schema:
             type: boolean
       responses:
         "200":
-          description: Kombinerad intervall-data
+          description: Datum-nycklad intervall-data
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericObject'
+                type: object
+                properties:
+                  from: {type: string, format: date}
+                  to:   {type: string, format: date}
+                  days:
+                    type: object
+                    additionalProperties:
+                      $ref: '#/components/schemas/GenericObject'
       x-openai-isConsequential: false
+
 
   # ──────────────── MÅLTIDER ──────────────────────────────
   /log/meal:
