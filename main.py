@@ -80,7 +80,7 @@ class WorkoutLog(BaseModel):
 # 🔒 Valfri API-nyckel
 # -----------------------------------------------------------
 def verify_auth(request: Request):
-    required = os.getenv("API_KEY")      # tom ⇒ auth av
+    required = os.getenv("API_KEY")
     if not required:
         return
     token = request.headers.get("authorization")
@@ -387,24 +387,28 @@ _cache = TTLCache(maxsize=64, ttl=60)
 def _sum_calories(meal_docs: List[dict]) -> int:
     return sum(m.get("estimated_calories", 0) or 0 for m in meal_docs)
 
-def _extract_daily_kcal_out(fitbit_calorie_blob: dict) -> Optional[int]:
+def _extract_daily_kcal_out(calorie_blob: dict) -> Optional[int]:
     """
-    Fitbit-returnen kan se ut så här:
-      {
-        "data": {
-          "activities-calories": [
-            {"dateTime": "2025-07-02", "value": "2794"}
-          ]
-        }
-      }
-    Vi returnerar 2794 som int eller None om det inte gick.
+    Försök hämta exakt värde ur Fitbit‐blobben oavsett om .data-nivån finns.
     """
     try:
+        # ibland ligger listan direkt under blob -> activities-calories
+        if "activities-calories" in calorie_blob:
+            return int(calorie_blob["activities-calories"][0]["value"])
         return int(
-            fitbit_calorie_blob["data"]["activities-calories"][0]["value"]
+            calorie_blob["data"]["activities-calories"][0]["value"]
         )
     except Exception:
         return None
+
+def _estimate_kcal_out(fitbit: dict, default_bmr: int = 1800) -> int:
+    """Grov uppskattning: BMR + 0.04 kcal per steg."""
+    try:
+        raw_steps = fitbit.get("steps", {}).get("data", {}).get("activities-steps", [])
+        steps = int(raw_steps[0]["value"]) if raw_steps else 0
+    except Exception:
+        steps = 0
+    return int(default_bmr + 0.04 * steps)
 
 def _build_daily_summary(date_str: str, *, bypass_cache=False):
     meals     = get_meals(date_str)
@@ -412,7 +416,10 @@ def _build_daily_summary(date_str: str, *, bypass_cache=False):
     fitbit    = get_extended(target_date=date_str)
 
     kcal_in  = _sum_calories(meals)
-    kcal_out = _extract_daily_kcal_out(fitbit["calories"])
+    kcal_out = _extract_daily_kcal_out(fitbit.get("calories", {}))
+
+    if kcal_out is None:
+        kcal_out = _estimate_kcal_out(fitbit)
 
     return {
         "date":      date_str,
