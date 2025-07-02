@@ -286,7 +286,7 @@ def _combine_workouts(date_str: str) -> List[dict]:
 # -----------------------------------------------------------
 # 📦 Daily summary
 # -----------------------------------------------------------
-_cache = TTLCache(maxsize=64, ttl=300)
+_cache = TTLCache(maxsize=64, ttl=300)   # 5 min historik
 
 def _build_daily_summary(date_str: str):
     return {
@@ -300,10 +300,23 @@ _cached = cached(_cache)(_build_daily_summary)
 
 @app.get("/daily-summary")
 def daily_summary(target_date: Optional[str] = None, fresh: bool = False):
+    """
+    Returnerar dagsöversikt (Fitbit + Firestore).
+
+    • Om fresh=true  eller datumet = idag → hoppa cache helt  
+      - rensa ev. gammal kopia och hämta live-data.
+
+    • För äldre datum används max 5 minuters cache.
+    """
     if not target_date:
         target_date = dt_date.today().isoformat()
-    if fresh or target_date == dt_date.today().isoformat():
+
+    is_today = (target_date == dt_date.today().isoformat())
+
+    if fresh or is_today:
+        _cache.pop(target_date, None)          # släng ev. gammalt
         return _build_daily_summary(target_date)
+
     return _cached(target_date)
 
 # ---------- Extended FitBit only --------------------------
