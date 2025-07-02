@@ -16,6 +16,9 @@ from datetime import date, timedelta
 from cachetools import TTLCache, cached
 from dotenv import load_dotenv
 
+from google.oauth2 import service_account
+from google.cloud import firestore
+
 # -----------------------------------------------------------
 # 🚀 Init & miljövariabler
 # -----------------------------------------------------------
