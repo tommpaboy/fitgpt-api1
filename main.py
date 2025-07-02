@@ -7,18 +7,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from pydantic import BaseModel, Field
-from typing import Optional, List
-import requests, json, os, base64, time
+from typing import Optional, List, Tuple
+import requests, json, os, base64, time, re
 from datetime import date as dt_date, timedelta, datetime as dt
 from cachetools import TTLCache, cached
 from dotenv import load_dotenv
 
 from google.oauth2 import service_account
 from google.cloud import firestore
-from dateutil import parser as dt_parse   # för lösa datumsträngar
-
-# -----------------------------------------------------------
-# 🚀 Init & miljövariabler
 # -----------------------------------------------------------
 load_dotenv()
 
@@ -36,29 +32,10 @@ FITBIT_CLIENT_ID     = os.getenv("FITBIT_CLIENT_ID")
 FITBIT_CLIENT_SECRET = os.getenv("FITBIT_CLIENT_SECRET")
 REDIRECT_URI         = os.getenv("REDIRECT_URI", "https://fitgpt-2364.onrender.com/callback")
 TOKEN_FILE           = "fitbit_token.json"
+PROFILE_FILE         = "user_profile.json"
 
 # -----------------------------------------------------------
-# 📁 Lokal användarprofil
-# -----------------------------------------------------------
-PROFILE_FILE = "user_profile.json"
-
-
-def load_profile() -> dict:
-    if not os.path.exists(PROFILE_FILE):
-        return {}
-    try:
-        with open(PROFILE_FILE, "r", encoding="utf-8") as f:
-            return json.load(f) or {}
-    except Exception:
-        return {}
-
-
-def save_profile(profile: dict):
-    with open(PROFILE_FILE, "w", encoding="utf-8") as f:
-        json.dump(profile, f, ensure_ascii=False, indent=2)
-
-# -----------------------------------------------------------
-# 🔗 Firestore-klient
+# 🔗 Firestore
 # -----------------------------------------------------------
 cred_info = json.loads(os.getenv("FIREBASE_CRED_JSON", "{}"))
 firebase_creds = service_account.Credentials.from_service_account_info(cred_info)
@@ -81,48 +58,61 @@ class WorkoutLog(BaseModel):
     start_time: Optional[str] = Field(
         None,
         alias="startTime",
-        description="ISO-datumtid (YYYY-MM-DDTHH:MM:SS), krävs för dublett-matchning"
+        description="ISO-tid (YYYY-MM-DDTHH:MM:SS). Lämna tomt – FitGPT försöker gissa."
     )
-    # acceptera även gamla klienter som skickar "type"
-    type: Optional[str] = Field(None, alias="workout_type")
+    type: Optional[str] = Field(None, alias="workout_type")  # bakåtkomp.
 
     class Config:
         allow_population_by_field_name = True
 
 # -----------------------------------------------------------
-# 🔒 Valfri API-nyckel
+# 🔒 Auth (valfri)
 # -----------------------------------------------------------
 def verify_auth(request: Request):
-    required = os.getenv("API_KEY")  # tom? -> auth av
-    if not required:
+    required = os.getenv("API_KEY")
+    if not required:                    # auth avstängt
         return
     token = request.headers.get("authorization")
     if token != f"Bearer {required}":
         raise HTTPException(status_code=401, detail="Missing/invalid token")
 
 # -----------------------------------------------------------
-# 🌐 UI & profil
+# 🏠 Mini-UI
 # -----------------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
 def home():
     return (
         "<h1>FitGPT-API 🚀</h1>"
-        "<ul>"
-        "<li><a href='/authorize'>Logga in med Fitbit</a></li>"
-        "<li><a href='/docs'>Swagger-dokumentation</a></li>"
-        "</ul>"
+        "<ul><li><a href='/authorize'>Logga in med Fitbit</a></li>"
+        "<li><a href='/docs'>Swagger (API-docs)</a></li></ul>"
     )
 
+# -----------------------------------------------------------
+# 📁 Användar-profil
+# -----------------------------------------------------------
+def _load_profile() -> dict:
+    if not os.path.exists(PROFILE_FILE):
+        return {}
+    try:
+        with open(PROFILE_FILE, encoding="utf-8") as f:
+            return json.load(f) or {}
+    except Exception:
+        return {}
+
+def _save_profile(profile: dict):
+    with open(PROFILE_FILE, "w", encoding="utf-8") as f:
+        json.dump(profile, f, ensure_ascii=False, indent=2)
+
 @app.get("/user_profile")
-def get_user_profile():
-    return load_profile()
+def get_profile():
+    return _load_profile()
 
 @app.post("/user_profile")
-def set_user_profile(profile: dict):
+def set_profile(profile: dict):
     if not isinstance(profile, dict):
         raise HTTPException(status_code=400, detail="Body måste vara ett JSON-objekt.")
-    save_profile(profile)
-    return {"message": "✅ Profil sparad!", "profile": profile}
+    _save_profile(profile)
+    return {"message": "✅ Sparat!", "profile": profile}
 
 # -----------------------------------------------------------
 # 🔥 Firestore – MÅLTIDER
@@ -152,82 +142,57 @@ def put_meal(doc_id: str, entry: MealLog = Body(...)):
     }
 
 @app.delete("/log/meal/{doc_id}", dependencies=[Depends(verify_auth)])
-def delete_meal(doc_id: str):
+def del_meal(doc_id: str):
     db.collection("meals").document(doc_id).delete()
     return {"id": doc_id, "status": "deleted"}
 
 # -----------------------------------------------------------
-# 🔥 Firestore – TRÄNINGSPASS
+# 🕒  Helpers – duration & match
 # -----------------------------------------------------------
-@app.post("/log/workout", dependencies=[Depends(verify_auth)])
-def post_workout(entry: WorkoutLog = Body(...)):
-    doc_ref = db.collection("workouts").add(entry.dict(by_alias=True, exclude_none=True))[1]
-    return {
-        "id": doc_ref.id,
-        "status": "stored",
-        "daily": _build_daily_summary(entry.date, bypass_cache=True),
-    }
+def _extract_duration_min(text: str) -> Optional[int]:
+    """Plocka ut '30 min', '45min' etc → 30."""
+    if not text:
+        return None
+    m = re.search(r"(\d+)\s*(?:min|\bmins?\b|\bm\b)", text.lower())
+    return int(m.group(1)) if m else None
 
-@app.get("/log/workout")
-def get_workouts(date: str):
-    docs = db.collection("workouts").where("date", "==", date).stream()
-    return [{"id": d.id, **d.to_dict()} for d in docs]
+def _guess_auto_match(
+    m_entry: dict, auto_logs: List[dict], used_idx: set
+) -> Tuple[Optional[int], float]:
+    """Returnera index i auto_logs + confidence (0-1)."""
+    dur_m = _extract_duration_min(m_entry.get("details", "")) or None
+    wt_m  = m_entry.get("workout_type", "").lower()
 
-@app.put("/log/workout/{doc_id}", dependencies=[Depends(verify_auth)])
-def put_workout(doc_id: str, entry: WorkoutLog = Body(...)):
-    db.collection("workouts").document(doc_id).set(entry.dict(by_alias=True, exclude_none=True))
-    return {
-        "id": doc_id,
-        "status": "updated",
-        "daily": _build_daily_summary(entry.date, bypass_cache=True),
-    }
+    best = None
+    best_score = 0.0
 
-@app.delete("/log/workout/{doc_id}", dependencies=[Depends(verify_auth)])
-def delete_workout(doc_id: str):
-    db.collection("workouts").document(doc_id).delete()
-    return {"id": doc_id, "status": "deleted"}
+    for idx, a in enumerate(auto_logs):
+        if idx in used_idx:
+            continue
+        name = a.get("activityName", "").lower()
+        score = 0.0
 
-# -----------------------------------------------------------
-# 💾 Fitbit OAuth
-# -----------------------------------------------------------
-@app.get("/authorize")
-def authorize():
-    url = (
-        "https://www.fitbit.com/oauth2/authorize?response_type=code"
-        f"&client_id={FITBIT_CLIENT_ID}"
-        f"&redirect_uri={REDIRECT_URI}"
-        "&scope=activity%20nutrition%20sleep%20heartrate%20weight%20location%20profile"
-    )
-    return RedirectResponse(url)
+        if wt_m and wt_m in name:
+            score += 0.6
+        elif name and name in wt_m:
+            score += 0.4
 
-@app.get("/callback")
-def callback(code: str):
-    token_url   = "https://api.fitbit.com/oauth2/token"
-    auth_header = base64.b64encode(f"{FITBIT_CLIENT_ID}:{FITBIT_CLIENT_SECRET}".encode()).decode()
+        dur_a = a.get("duration", 0) / 60000
+        if dur_m:
+            diff = abs(dur_a - dur_m) / max(dur_a, dur_m, 1)
+            if diff <= 0.05:
+                score += 0.4
+            elif diff <= 0.15:
+                score += 0.2
 
-    resp = requests.post(
-        token_url,
-        headers={
-            "Authorization": f"Basic {auth_header}",
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        data={
-            "client_id":  FITBIT_CLIENT_ID,
-            "grant_type": "authorization_code",
-            "redirect_uri": REDIRECT_URI,
-            "code": code,
-        },
-    )
-    data = resp.json()
-    if "access_token" in data:
-        data["_saved_at"] = time.time()
-        with open(TOKEN_FILE, "w") as f:
-            json.dump(data, f)
-        return {"message": "✅ Token sparad", "token_data": data}
-    raise HTTPException(status_code=400, detail=data)
+        if score > best_score:
+            best = idx
+            best_score = score
+
+    return (best, best_score)
 
 # -----------------------------------------------------------
-# Fitbit – helpers
+# 💾 Fitbit OAuth + helpers (oförändrat från förra versionen)
 # -----------------------------------------------------------
 def refresh_token_if_needed():
     if not os.path.exists(TOKEN_FILE):
@@ -243,14 +208,10 @@ def refresh_token_if_needed():
     auth_header = base64.b64encode(f"{FITBIT_CLIENT_ID}:{FITBIT_CLIENT_SECRET}".encode()).decode()
     resp = requests.post(
         "https://api.fitbit.com/oauth2/token",
-        headers={
-            "Authorization": f"Basic {auth_header}",
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        data={
-            "grant_type": "refresh_token",
-            "refresh_token": token_data["refresh_token"],
-        },
+        headers={"Authorization": f"Basic {auth_header}",
+                 "Content-Type": "application/x-www-form-urlencoded"},
+        data={"grant_type": "refresh_token",
+              "refresh_token": token_data["refresh_token"]},
     )
     if resp.status_code == 200:
         new_token = resp.json()
@@ -259,7 +220,6 @@ def refresh_token_if_needed():
             json.dump(new_token, f)
         return new_token
     return None
-
 
 def get_fitbit_data(resource_path, start_date, end_date):
     token = refresh_token_if_needed()
@@ -278,26 +238,70 @@ def get_fitbit_data(resource_path, start_date, end_date):
     except Exception as e:
         return {"error": str(e), "data": {}}
 
-
 def get_activity_logs(date_str: str) -> List[dict]:
-    """Returnerar ENDAST Fitbit-pass som startat det givna datumet."""
     token = refresh_token_if_needed()
     if not token:
         return []
     headers = {"Authorization": f"Bearer {token['access_token']}"}
-    url = (
-        "https://api.fitbit.com/1/user/-/activities/list.json"
-        f"?beforeDate={date_str}T23:59:59&sort=desc&limit=50&offset=0"
-    )
+    url = ("https://api.fitbit.com/1/user/-/activities/list.json"
+           f"?beforeDate={date_str}T23:59:59&sort=desc&limit=50&offset=0")
     try:
         raw = requests.get(url, headers=headers).json().get("activities", [])
         return [a for a in raw if a.get("originalStartTime", "").startswith(date_str)]
     except Exception:
         return []
 
-# ---------- Kombinera manuella + Fitbit-pass ---------------
+# -----------------------------------------------------------
+# 🔥 Firestore – TRÄNINGSPASS
+# -----------------------------------------------------------
+def _infer_start_time(entry: WorkoutLog) -> Tuple[Optional[str], bool]:
+    """Försök hitta Fitbit-passet och returnera starttid + confirm_bool."""
+    auto_logs = get_activity_logs(entry.date)
+    idx, conf = _guess_auto_match(entry.dict(exclude_none=True), auto_logs, set())
+    if idx is not None and conf >= 0.8:
+        start_iso = auto_logs[idx]["originalStartTime"][:-6]  # utan tidszon
+        return start_iso, False
+    return None, True  # behöver frågas
+
+@app.post("/log/workout", dependencies=[Depends(verify_auth)])
+def post_workout(entry: WorkoutLog = Body(...)):
+    confirm = False
+    if not entry.start_time:
+        guessed, confirm = _infer_start_time(entry)
+        if guessed:
+            entry.start_time = guessed
+
+    doc_ref = db.collection("workouts").add(entry.dict(by_alias=True, exclude_none=True))[1]
+    return {
+        "id": doc_ref.id,
+        "status": "stored",
+        "needs_confirmation": confirm,
+        "daily": _build_daily_summary(entry.date, bypass_cache=True),
+    }
+
+@app.get("/log/workout")
+def get_workouts(date: str):
+    docs = db.collection("workouts").where("date", "==", date).stream()
+    return [{"id": d.id, **d.to_dict()} for d in docs]
+
+@app.put("/log/workout/{doc_id}", dependencies=[Depends(verify_auth)])
+def put_workout(doc_id: str, entry: WorkoutLog = Body(...)):
+    db.collection("workouts").document(doc_id).set(entry.dict(by_alias=True, exclude_none=True))
+    return {
+        "id": doc_id,
+        "status": "updated",
+        "daily": _build_daily_summary(entry.date, bypass_cache=True),
+    }
+
+@app.delete("/log/workout/{doc_id}", dependencies=[Depends(verify_auth)])
+def del_workout(doc_id: str):
+    db.collection("workouts").document(doc_id).delete()
+    return {"id": doc_id, "status": "deleted"}
+
+# -----------------------------------------------------------
+# 🧬  Merge-logik
+# -----------------------------------------------------------
 def _combine_workouts(date_str: str) -> List[dict]:
-    """Slå ihop manuella + Fitbit-pass, ta bort dubletter och returnera komplett lista."""
     manual_raw = get_workouts(date_str)
     manual = [{**w, "source": "manual"} for w in manual_raw]
 
@@ -307,49 +311,42 @@ def _combine_workouts(date_str: str) -> List[dict]:
     merged: List[dict] = []
     used_auto = set()
 
-    # --- Dublett-matchning ---------------------------------------------------
+    # 1️⃣ matcha manuella som HAR start_time
     for m in manual:
-        m_ts_str = m.get("start_time") or m.get("startTime")
-        if not m_ts_str:
-            merged.append(m)
+        st = m.get("start_time") or m.get("startTime")
+        if not st:
             continue
-
-        m_ts = dt.fromisoformat(m_ts_str)
-        match_idx = None
-
+        m_ts = dt.fromisoformat(st)
         for idx, a in enumerate(auto):
             if idx in used_auto:
                 continue
             try:
-                a_ts = dt.fromisoformat(a["originalStartTime"][:-6])  # ta bort tidszon
+                a_ts = dt.fromisoformat(a["originalStartTime"][:-6])
             except Exception:
                 continue
-
-            if abs((a_ts - m_ts).total_seconds()) < 1800:  # ±30 min
-                match_idx = idx
+            if abs((a_ts - m_ts).total_seconds()) < 1800:
+                used_auto.add(idx)
+                merged.append({**a, **m, "source": "merged"})
                 break
-
-        if match_idx is None:
-            merged.append(m)
         else:
-            a = auto[match_idx]
-            used_auto.add(match_idx)
-            merged.append(
-                {
-                    **a,              # Fitbit-metrics (kcal, puls mm.)
-                    **m,              # Manuella fält tar över (typ, detaljer)
-                    "source": "merged",
-                    "fitbit_id": a.get("logId"),
-                    "manual_id": m.get("id"),
-                }
-            )
+            merged.append(m)  # ingen match
 
-    # --- Lägg till kvarvarande Fitbit-pass ------------------
-    merged.extend([a for idx, a in enumerate(auto) if idx not in used_auto])
+    # 2️⃣ matcha manuella UTAN start_time via heuristik
+    for m in [x for x in manual if not (x.get("start_time") or x.get("startTime"))]:
+        idx, conf = _guess_auto_match(m, auto, used_auto)
+        if idx is not None and conf >= 0.8:
+            used_auto.add(idx)
+            m["start_time"] = auto[idx]["originalStartTime"][:-6]
+            merged.append({**auto[idx], **m, "source": "merged"})
+        else:
+            merged.append({**m, "needs_confirmation": True})
+
+    # 3️⃣ kvarvarande Fitbit-pass
+    merged.extend([a for i, a in enumerate(auto) if i not in used_auto])
     return merged
 
 # -----------------------------------------------------------
-# 📦 Daily summary (cache 5 min för historik)
+# 📦 Daily summary (cache 5 min)
 # -----------------------------------------------------------
 _cache = TTLCache(maxsize=64, ttl=300)
 
@@ -371,7 +368,7 @@ def daily_summary(target_date: Optional[str] = None, fresh: bool = False):
         return _build_daily_summary(target_date)
     return _cached(target_date)
 
-# ---------- Direkt-Fitbit endpoints ------------------------
+# ---------- Små Fitbit-proxy-endpoints ---------------------
 @app.get("/data/steps")
 def get_steps(date: str):
     return get_fitbit_data("activities/steps", date, date)
@@ -388,7 +385,7 @@ def get_heart(date: str):
 def get_calories(date: str):
     return get_fitbit_data("activities/calories", date, date)
 
-# ---------- Extended (Fitbit) ------------------------------
+# ---------- Extended Fitbit --------------------------------
 @app.get("/data/extended")
 def get_extended(days: int = 1, target_date: Optional[str] = None):
     if target_date:
@@ -408,7 +405,7 @@ def get_extended(days: int = 1, target_date: Optional[str] = None):
         "hrv": get_fitbit_data("hrv", start, end),
     }
 
-# ---------- Extended FULL (Fitbit + Firestore) -------------
+# ---------- Extended FULL ----------------------------------
 @app.get("/data/extended/full")
 def get_extended_full(days: int = 1, fresh: bool = False):
     if days < 1:
@@ -428,7 +425,6 @@ def get_extended_full(days: int = 1, fresh: bool = False):
             "activity_logs": get_activity_logs(d),
         }
         if fresh and d == today.isoformat():
-            # alltid färskaste för idag
             out["days"][d]["meals"] = get_meals(d)
             out["days"][d]["workouts"] = _combine_workouts(d)
             out["days"][d]["activity_logs"] = get_activity_logs(d)
