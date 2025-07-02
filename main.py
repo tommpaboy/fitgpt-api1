@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Tuple
 import requests, json, os, base64, time, re
 from datetime import datetime as dt, timedelta, date as dt_date
-from zoneinfo import ZoneInfo          # ← NYTT
+from zoneinfo import ZoneInfo
 from cachetools import TTLCache, cached
 from dotenv import load_dotenv
 
@@ -26,7 +26,7 @@ from google.cloud import firestore
 # 🌱 Init & miljövariabler
 # -----------------------------------------------------------
 load_dotenv()
-SE_TZ = ZoneInfo("Europe/Stockholm")   # ← NYTT
+SE_TZ = ZoneInfo("Europe/Stockholm")
 
 FITBIT_CLIENT_ID     = os.getenv("FITBIT_CLIENT_ID")
 FITBIT_CLIENT_SECRET = os.getenv("FITBIT_CLIENT_SECRET")
@@ -80,7 +80,7 @@ class WorkoutLog(BaseModel):
 # 🔒 Valfri API-nyckel
 # -----------------------------------------------------------
 def verify_auth(request: Request):
-    required = os.getenv("API_KEY")      # tom = auth av
+    required = os.getenv("API_KEY")      # tom ⇒ auth av
     if not required:
         return
     token = request.headers.get("authorization")
@@ -346,7 +346,8 @@ def _combine_workouts(date_str: str) -> List[dict]:
         try:
             m_ts = dt.fromisoformat(st)
         except Exception:
-            merged.append(m); continue
+            merged.append(m)
+            continue
 
         matched = False
         for idx, a in enumerate(auto):
@@ -379,16 +380,39 @@ def _combine_workouts(date_str: str) -> List[dict]:
     return merged
 
 # -----------------------------------------------------------
-# 📦 Daily summary (cache 5 min)
+# 📦 Daily summary (cache 1 min)
 # -----------------------------------------------------------
 _cache = TTLCache(maxsize=64, ttl=60)
 
+def _sum_calories(meal_docs: List[dict]) -> int:
+    """Summerar estimated_calories för en lista måltidsdokument."""
+    return sum(m.get("estimated_calories", 0) for m in meal_docs)
+
 def _build_daily_summary(date_str: str, *, bypass_cache=False):
+    """Returnerar samlad data + kcal-summeringar för ett datum."""
+    meals     = get_meals(date_str)
+    workouts  = _combine_workouts(date_str)
+    fitbit    = get_extended(target_date=date_str)
+
+    # ---- kcal in ----
+    kcal_in = _sum_calories(meals)
+
+    # ---- kcal ut ----
+    kcal_out = 0
+    try:
+        kc_series = fitbit["calories"]["data"]["activities-calories"]
+        # Fitbit ger en lista med ett element vid 1-dagsanrop
+        kcal_out = int(kc_series[0]["value"])
+    except Exception:
+        pass
+
     return {
-        "date": date_str,
-        "fitbit": get_extended(target_date=date_str),
-        "meals": get_meals(date_str),
-        "workouts": _combine_workouts(date_str),
+        "date":      date_str,
+        "kcal_in":   kcal_in,
+        "kcal_out":  kcal_out,
+        "meals":     meals,
+        "workouts":  workouts,
+        "fitbit":    fitbit,
     }
 
 _cached = cached(_cache)(_build_daily_summary)
@@ -396,7 +420,7 @@ _cached = cached(_cache)(_build_daily_summary)
 @app.get("/daily-summary")
 def daily_summary(target_date: Optional[str] = None, fresh: bool = False):
     if not target_date:
-        target_date = dt.now(SE_TZ).date().isoformat()          # ← ÄNDRAD
+        target_date = dt.now(SE_TZ).date().isoformat()
     if fresh or target_date == dt.now(SE_TZ).date().isoformat():
         return _build_daily_summary(target_date)
     return _cached(target_date)
@@ -428,7 +452,7 @@ def get_extended(days: int = 1, target_date: Optional[str] = None):
     if target_date:
         start = end = target_date
     else:
-        today = dt.now(SE_TZ).date()                           # ← ÄNDRAD
+        today = dt.now(SE_TZ).date()
         start = (today - timedelta(days=days - 1)).isoformat()
         end = today.isoformat()
     return {
@@ -450,18 +474,18 @@ def get_extended_full(days: int = 1, fresh: bool = False):
     Returnerar:
       {
         "from": <ISO>,
-        "to": <ISO>,
+        "to":   <ISO>,
         "days": {
           "<YYYY-MM-DD>": {
             "date": ...,
+            "kcal_in": ...,
+            "kcal_out": ...,
             "fitbit": {...},
             "meals": [...],
             "workouts": [...]
           }, ...
         }
       }
-    • days ≥ 1
-    • fresh=true → hoppa cache för samtliga dagar
     """
     if days < 1:
         raise HTTPException(status_code=400, detail="days måste vara ≥ 1")
