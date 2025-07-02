@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: FitGPT API
-  version: "1.3.0"
+  version: "1.4.0"
   description: End-points för Fitbit-data samt manuellt loggade måltider & träningspass.
 
 servers:
@@ -14,15 +14,46 @@ paths:
       summary: Samlad dagsdata (Fitbit + Firestore)
       operationId: getDailySummary
       parameters:
-        - name: date
+        - name: date          # ex. 2025-07-02
           in: query
           required: false
           schema:
             type: string
             format: date
+        - name: fresh         # true = hoppa cache
+          in: query
+          required: false
+          schema:
+            type: boolean
       responses:
         "200":
           description: Dagsdata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericObject'
+      x-openai-isConsequential: false
+
+  /data/extended/full:
+    get:
+      summary: Fitbit + Firestore för flera dagar
+      operationId: getExtendedFull
+      parameters:
+        - name: days
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: fresh         # hoppa cache för dagens datum
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Kombinerad intervall-data
           content:
             application/json:
               schema:
@@ -214,13 +245,10 @@ components:
           format: date
         meal:
           type: string
-          description: Typ av mål
         items:
           type: string
-          description: Livsmedel och mängder
         estimated_calories:
           type: integer
-          description: Beräknade kcal (valfritt)
 
     WorkoutLog:
       type: object
@@ -231,7 +259,5 @@ components:
           format: date
         workout_type:
           type: string
-          description: Träningstyp
         details:
           type: string
-          description: Exempel – ”Marklyft 100 kg × 3”
