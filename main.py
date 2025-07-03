@@ -382,16 +382,22 @@ def _combine_workouts(date_str: str) -> List[dict]:
 # -----------------------------------------------------------
 # 📦 Daily summary – exakt kcal_out + smart cache
 # -----------------------------------------------------------
-_daily_cache = TTLCache(maxsize=64, ttl=60)  # 60 s
+#  Viktig ändring: om Fitbit saknar exakt kcal-utdata returneras
+#  kcal_out = None (i stället för att gissa BMR + steg).
+# -----------------------------------------------------------
+_daily_cache = TTLCache(maxsize=64, ttl=60)  # 60 s (kan höjas senare)
 
 def _sum_calories(meal_docs: List[dict]) -> int:
+    """Summerar manuellt loggade kalorier in."""
     return sum(m.get("estimated_calories", 0) or 0 for m in meal_docs)
+
 
 def _extract_daily_kcal_out(calorie_blob: dict) -> Tuple[Optional[int], bool]:
     """
-    Returnerar (kcal_out, is_estimate)
-    is_estimate == False  → värdet kommer direkt från Fitbit
-    is_estimate == True   → Fitbit saknade siffran, vi gissar senare
+    Returnerar tuple (kcal_out, is_estimate).
+
+    • is_estimate == False → värdet kommer direkt från Fitbit (exakt).
+    • is_estimate == True  → Fitbit saknar värdet helt.
     """
     try:
         acts = calorie_blob.get("activities-calories") \
@@ -400,23 +406,18 @@ def _extract_daily_kcal_out(calorie_blob: dict) -> Tuple[Optional[int], bool]:
     except Exception:
         return None, True
 
-def _estimate_kcal_out(fitbit: dict, default_bmr: int = 1800) -> int:
-    """BMR + 0.04 kcal per steg (grov uppskattning)."""
-    try:
-        steps_raw = fitbit["steps"]["data"]["activities-steps"]
-        steps = int(steps_raw[0]["value"])
-    except Exception:
-        steps = 0
-    return int(default_bmr + 0.04 * steps)
 
 def _build_daily_summary(date_str: str) -> dict:
+    """Bygger dagsobjektet med Fitbit + Firestore."""
     meals    = get_meals(date_str)
     workouts = _combine_workouts(date_str)
     fitbit   = get_extended(target_date=date_str)
 
-    kcal_in, (kcal_out, guessed) = _sum_calories(meals), _extract_daily_kcal_out(fitbit.get("calories", {}))
+    kcal_in = _sum_calories(meals)
+    kcal_out, guessed = _extract_daily_kcal_out(fitbit.get("calories", {}))
     if guessed:
-        kcal_out = _estimate_kcal_out(fitbit)
+        # Lämna som None i stället för att gissa
+        kcal_out = None
 
     return {
         "date":        date_str,
@@ -428,7 +429,9 @@ def _build_daily_summary(date_str: str) -> dict:
         "fitbit":      fitbit,
     }
 
+
 def _get_daily_summary(date_str: str, *, force_fresh: bool = False) -> dict:
+    """Hämtar dagsdata med enkel TTL-cache (bara exakt data cachas)."""
     if not force_fresh and date_str in _daily_cache:
         return _daily_cache[date_str]
 
@@ -438,6 +441,7 @@ def _get_daily_summary(date_str: str, *, force_fresh: bool = False) -> dict:
     if not summary["is_estimate"]:
         _daily_cache[date_str] = summary
     return summary
+
 
 @app.get("/daily-summary")
 def daily_summary(target_date: Optional[str] = None, fresh: bool = False):
