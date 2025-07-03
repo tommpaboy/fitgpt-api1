@@ -315,7 +315,8 @@ components:
           description: Kalorier in (manuellt loggade måltider)
         kcal_out:
           type: integer
-          description: Kalorier ut (Fitbit-data)
+          nullable: true
+          description: Kalorier ut (null om Fitbit inte levererat exakt värde)
         is_estimate:
           type: boolean
           description: true om kcal_out är uppskattat från steg/BMR istället för hämtat från Fitbit
