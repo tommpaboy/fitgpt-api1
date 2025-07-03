@@ -2,10 +2,11 @@ openapi: 3.1.0
 
 info:
   title: FitGPT API
-  version: "1.6.1"
+  version: "1.7.0"
   description: |
-    API för att kombinera Fitbit-data med manuellt loggade måltider och träningspass.
-    GPT hämtar som standard de senaste 3 dagarna utan att fråga användaren om lov.
+    API som kombinerar Fitbit-data (inkl. sömn & HRV) med manuellt loggade
+    måltider och träningspass. GPT hämtar som standard de senaste 3 dagarna
+    utan att fråga användaren.
 
 servers:
   - url: https://fitgpt-2364.onrender.com
@@ -22,15 +23,12 @@ paths:
           schema: {type: string, format: date}
         - in: query
           name: fresh
-          description: true → hoppa cache (hämtar alltid senaste datan från Fitbit)
+          description: true → hoppa cache (hämtar alltid färsk Fitbit-data)
           schema: {type: boolean}
       responses:
         "200":
           description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+          content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}
       x-openai-isConsequential: false
 
   /data/extended:
@@ -48,10 +46,7 @@ paths:
       responses:
         "200":
           description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+          content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}
       x-openai-isConsequential: false
 
   /data/extended/full:
@@ -69,10 +64,7 @@ paths:
       responses:
         "200":
           description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+          content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}
       x-openai-isConsequential: false
 
   /data/steps:
@@ -85,12 +77,7 @@ paths:
           required: true
           schema: {type: string, format: date}
       responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
       x-openai-isConsequential: false
 
   /data/sleep:
@@ -103,12 +90,7 @@ paths:
           required: true
           schema: {type: string, format: date}
       responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
       x-openai-isConsequential: false
 
   /data/heart:
@@ -121,12 +103,7 @@ paths:
           required: true
           schema: {type: string, format: date}
       responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
       x-openai-isConsequential: false
 
   /data/calories:
@@ -139,12 +116,7 @@ paths:
           required: true
           schema: {type: string, format: date}
       responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
       x-openai-isConsequential: false
 
   /log/meal:
@@ -153,17 +125,9 @@ paths:
       operationId: postMeal
       requestBody:
         required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MealLog'
+        content: {application/json: {schema: {$ref: '#/components/schemas/MealLog'}}}
       responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
       x-openai-isConsequential: true
     get:
       summary: Hämta måltider för datum
@@ -178,50 +142,26 @@ paths:
           description: OK
           content:
             application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/MealLog'
+              schema: {type: array, items: {$ref: '#/components/schemas/MealLog'}}
       x-openai-isConsequential: false
 
   /log/meal/{id}:
     put:
       summary: Uppdatera måltid
       operationId: putMeal
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema: {type: string}
+      parameters: [{in: path, name: id, required: true, schema: {type: string}}]
       requestBody:
         required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MealLog'
+        content: {application/json: {schema: {$ref: '#/components/schemas/MealLog'}}}
       responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
       x-openai-isConsequential: true
     delete:
       summary: Ta bort måltid
       operationId: deleteMeal
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema: {type: string}
+      parameters: [{in: path, name: id, required: true, schema: {type: string}}]
       responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
       x-openai-isConsequential: true
 
   /log/workout:
@@ -230,75 +170,39 @@ paths:
       operationId: postWorkout
       requestBody:
         required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkoutLog'
+        content: {application/json: {schema: {$ref: '#/components/schemas/WorkoutLog'}}}
       responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
       x-openai-isConsequential: true
     get:
       summary: Hämta pass för datum
       operationId: getWorkouts
-      parameters:
-        - in: query
-          name: date
-          required: true
-          schema: {type: string, format: date}
+      parameters: [{in: query, name: date, required: true, schema: {type: string, format: date}}]
       responses:
         "200":
           description: OK
           content:
             application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/WorkoutLog'
+              schema: {type: array, items: {$ref: '#/components/schemas/WorkoutLog'}}
       x-openai-isConsequential: false
 
   /log/workout/{id}:
     put:
       summary: Uppdatera träningspass
       operationId: putWorkout
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema: {type: string}
+      parameters: [{in: path, name: id, required: true, schema: {type: string}}]
       requestBody:
         required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkoutLog'
+        content: {application/json: {schema: {$ref: '#/components/schemas/WorkoutLog'}}}
       responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
       x-openai-isConsequential: true
     delete:
       summary: Ta bort träningspass
       operationId: deleteWorkout
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema: {type: string}
+      parameters: [{in: path, name: id, required: true, schema: {type: string}}]
       responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GenericObject'
+        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
       x-openai-isConsequential: true
 
 components:
@@ -307,20 +211,20 @@ components:
       type: object
       additionalProperties: true
       properties:
-        date:
-          type: string
-          format: date
-        kcal_in:
-          type: integer
-          description: Kalorier in (manuellt loggade måltider)
-        kcal_out:
+        date:   {type: string, format: date}
+        kcal_in:{type: integer, description: Kalorier in (manuella måltider)}
+        kcal_out:{type: integer, nullable: true, description: Kalorier ut (null om Fitbit saknar exakt värde)}
+        is_estimate:{type: boolean, description: true om kcal_out är uppskattat}
+        sleep:
+          type: object
+          nullable: true
+          properties:
+            minutes:    {type: integer, description: Sömn­tid (min)}
+            efficiency: {type: integer, description: Fitbit sleep-score %}
+        hrv:
           type: integer
           nullable: true
-          description: Kalorier ut (null om Fitbit inte levererat exakt värde)
-        is_estimate:
-          type: boolean
-          description: true om kcal_out är uppskattat från steg/BMR istället för hämtat från Fitbit
-
+          description: HRV (rMSSD ms)
     MealLog:
       type: object
       required: [date, meal, items]
@@ -329,7 +233,9 @@ components:
         meal:   {type: string}
         items:  {type: string}
         estimated_calories: {type: integer}
-
+        protein_g: {type: integer}
+        carbs_g:   {type: integer}
+        fat_g:     {type: integer}
     WorkoutLog:
       type: object
       required: [date, workout_type, details]
@@ -337,5 +243,4 @@ components:
         date:        {type: string, format: date}
         workout_type:{type: string}
         details:     {type: string}
-        start_time:  {type: string, format: date-time,
-                      description: ISO-datumtid (YYYY-MM-DDTHH:MM:SS)}
+        start_time:  {type: string, format: date-time, description: ISO (YYYY-MM-DDTHH:MM:SS)}
