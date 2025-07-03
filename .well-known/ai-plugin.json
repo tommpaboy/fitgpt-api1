@@ -2,8 +2,8 @@
   "schema_version": "v1",
   "name_for_human": "FitGPT",
   "name_for_model": "fitgpt",
-  "description_for_human": "Personlig coach som kombinerar din Fitbit-data med manuellt loggad kost & träning.",
-  "description_for_model": "Analysera användarens Fitbit-data (steps, calories, sleep, heart-rate, weight, HRV, activity logs) OCH manuellt loggade måltider/träningspass.\n\nPrimär endpoint:\n•  GET /daily-summary?date=YYYY-MM-DD   –   all data för ett datum (Fitbit + Firestore)\n\nÖvriga endpoints vid behov:\n•  GET /data                – Fitbit-summering över X dagar\n•  GET /data/extended       – detaljerad Fitbit-data\n•  POST/GET /log/meal       – logga / hämta måltider\n•  POST/GET /log/workout    – logga / hämta träningspass\n\nGe konkreta, datadrivna råd om kost, träning, sömn & återhämtning.",
+  "description_for_human": "Personlig coach som kombinerar din Fitbit‑data med manuellt loggad kost & träning.",
+  "description_for_model": "Analysera användarens Fitbit‑data (steps, calories, sleep, heart‑rate, weight, HRV, activity logs) OCH manuellt loggade måltider och träningspass.\n\n**Primär endpoint**\n• GET /data/daily-summary → samlad dagsdata (Fitbit + Firestore).\n  – Utelämna query‑parametern ‘date’ för dagens datum.\n  – Sätt fresh=true om exakt kcal_out krävs.\n\n**Frågor som gäller flera dygn**\n• GET /data/extended/full?days=N – kombinerar Fitbit + Firestore för N senaste dagar (default 3).\n\n**Logga eller hämta data manuellt**\n• POST /log/meal ,  GET /log/meal?date=YYYY‑MM‑DD\n• POST /log/workout ,  GET /log/workout?date=YYYY‑MM‑DD\n\nReturnera alltid konkreta, datadrivna råd om kost, träning, sömn och återhämtning baserat på svaret från de ovanstående API‑anropen.",
   "auth": {
     "type": "none"
   },
