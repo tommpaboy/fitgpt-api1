@@ -227,6 +227,28 @@ def _guess_auto_match(m_entry: dict, auto_logs: List[dict], used_idx: set) -> Tu
 # -----------------------------------------------------------
 # 💾 Fitbit helpers
 # -----------------------------------------------------------
+# 💤 & 💓 extraction helpers
+def _extract_sleep_metrics(sleep_blob: dict) -> Optional[dict]:
+    try:
+        nights = sleep_blob.get("data", {}).get("sleep", [])
+        if not nights:
+            return None
+        total_ms = sum(n["duration"] for n in nights)
+        minutes  = total_ms // 60000
+        eff      = round(sum(n.get("efficiency", 0) for n in nights)/len(nights))
+        return {"minutes": minutes, "efficiency": eff}
+    except Exception:
+        return None
+
+def _extract_hrv_metric(hrv_blob: dict) -> Optional[int]:
+    try:
+        series = hrv_blob.get("data", {}).get("hrv", [])
+        if not series:
+            return None
+        return int(series[0]["value"]["rmssd"])
+    except Exception:
+        return None
+
 def refresh_token_if_needed():
     if not os.path.exists(TOKEN_FILE):
         return None
@@ -408,22 +430,25 @@ def _extract_daily_kcal_out(calorie_blob: dict) -> Tuple[Optional[int], bool]:
 
 
 def _build_daily_summary(date_str: str) -> dict:
-    """Bygger dagsobjektet med Fitbit + Firestore."""
     meals    = get_meals(date_str)
     workouts = _combine_workouts(date_str)
     fitbit   = get_extended(target_date=date_str)
 
-    kcal_in = _sum_calories(meals)
+    kcal_in  = _sum_calories(meals)
     kcal_out, guessed = _extract_daily_kcal_out(fitbit.get("calories", {}))
     if guessed:
-        # Lämna som None i stället för att gissa
         kcal_out = None
+
+    sleep_info = _extract_sleep_metrics(fitbit.get("sleep", {}))
+    hrv_val    = _extract_hrv_metric(fitbit.get("hrv", {}))
 
     return {
         "date":        date_str,
         "kcal_in":     kcal_in,
         "kcal_out":    kcal_out,
         "is_estimate": guessed,
+        "sleep":       sleep_info,
+        "hrv":         hrv_val,
         "meals":       meals,
         "workouts":    workouts,
         "fitbit":      fitbit,
