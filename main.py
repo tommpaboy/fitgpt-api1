@@ -85,6 +85,16 @@ _cache_get = CACHE.get
 _cache_set = CACHE.__setitem__
 _cache_invalidate = CACHE.pop
 
+# ─────── Cache helpers ───────
+CACHE = TTLCache(maxsize=128, ttl=60)
+
+_cache_get        = CACHE.get
+_cache_set        = CACHE.__setitem__
+
+def _cache_invalidate(date: str) -> None:
+    # pop(key, default) så ingen KeyError kastas
+    CACHE.pop(date, None)
+
 # ───────────────  Pydantic modeller  ───────────────
 class MealLog(BaseModel):
     date: str
