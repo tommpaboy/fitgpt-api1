@@ -122,19 +122,19 @@ def verify_auth(request: Request):
     if token != f"Bearer {API_KEY_REQUIRED}":
         raise HTTPException(401, "Missing or invalid token")
 
-# ─────────────── Mini-UI ───────────────
 @app.get("/", response_class=HTMLResponse)
 def home():
-    return (
-        "<h1>FitGPT-API 🚀</h1>"
-        "<p>Snabbkommandon:</p>"
-        "<ul>"
-        "<li>/sammanfatta – dagens summering</li>"
-        "<li>/sammanfatta/igår – gårdagen</li>"
-        "<li>/logga/måltid  •  /logga/pass</li>"
-        "</ul>"
-        "<p><a href='/docs'>Swagger</a></p>"
-    )
+    return """
+    <h1>FitGPT-API 🚀</h1>
+    <p>Snabbkommandon:</p>
+    <ul>
+      <li><a href='/authorize'>Logga in med Fitbit</a></li>
+      <li><a href='/docs'>Swagger-dokumentation</a></li>
+      <li><a href='/sammanfatta'>/sammanfatta – dagens summering</a></li>
+      <li><a href='/sammanfatta/igår'>/sammanfatta/igår – gårdagen</a></li>
+      <li><a href='/logga/måltid'>/logga/måltid</a> / <a href='/logga/pass'>/logga/pass</a></li>
+    </ul>
+    """
 
 # ─────────────── Fitbit OAuth ───────────────
 @app.get("/authorize")
