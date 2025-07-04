@@ -444,6 +444,18 @@ def sammanfatta(datum: Optional[str] = None,
     target = _resolve_date(datum, days_back=days_back)
     return _get_daily_summary(target, force_fresh=fresh)
 
+# ───────── Alias: /daily-summary (för bakåtkomp. GPT) ─────────
+@app.get("/daily-summary")
+def daily_summary_alias(date: Optional[str] = None,
+                        target_date: Optional[str] = None,
+                        fresh: bool = False):
+    """
+    Legacy-alias som vidarebefordrar till /sammanfatta.
+    Hanterar både ?date= och ?target_date= som tomma eller satta.
+    """
+    datum = date or target_date or None
+    return sammanfatta(datum=datum, fresh=fresh)
+
 # ─────────────── Fitbit-proxy endpoints ───────────────
 @app.get("/data/steps")
 def steps(date: str):
