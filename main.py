@@ -65,11 +65,12 @@ class MealLog(BaseModel):
 
 
 class WorkoutLog(BaseModel):
-    date: str       # YYYY-MM-DD
-    workout_type: str = Field(..., alias="type", description="Typ av pass, t.ex. Badminton")
+    date: str  # YYYY-MM-DD
+    type: str  # Typ av pass, t.ex. Styrkepass eller Badminton
     details: str
     start_time: Optional[str] = Field(
-        None, alias="startTime",
+        None,
+        alias="startTime",
         description="ISO-tid (YYYY-MM-DDTHH:MM:SS). Tomt ⇒ FitGPT gissar.",
     )
 
