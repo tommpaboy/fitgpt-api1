@@ -445,10 +445,21 @@ def sammanfatta(datum: Optional[str] = None,
     return _get_daily_summary(target, force_fresh=fresh)
 
 # ─────────────── Fitbit-proxy endpoints ───────────────
-@app.get("/data/steps");    def steps(date: str):    return _fitbit_get("activities/steps", date, date)
-@app.get("/data/sleep");    def sleep(date: str):    return _fitbit_get("sleep", date, date)
-@app.get("/data/heart");    def heart(date: str):    return _fitbit_get("activities/heart", date, date)
-@app.get("/data/calories"); def calories(date: str): return _fitbit_get("activities/calories", date, date)
+@app.get("/data/steps")
+def steps(date: str):
+    return _fitbit_get("activities/steps", date, date)
+
+@app.get("/data/sleep")
+def sleep(date: str):
+    return _fitbit_get("sleep", date, date)
+
+@app.get("/data/heart")
+def heart(date: str):
+    return _fitbit_get("activities/heart", date, date)
+
+@app.get("/data/calories")
+def calories(date: str):
+    return _fitbit_get("activities/calories", date, date)
 
 # ─────────────── Extended FULL (Fitbit + Firestore) ───────────────
 @app.get("/data/extended/full")
