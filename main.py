@@ -392,9 +392,15 @@ def _extract_sleep(blob):
     }
 
 
-def _extract_hrv(blob):
-    series = blob.get("data", {}).get("hrv", [])
-    return int(series[0]["value"].get("rmssd")) if series else None
+def _extract_hrv(fb_data: dict) -> Optional[int]:
+    series = fb_data.get("hrv", {}).get("value", {}).get("daily", [])
+    if not series:
+        return None
+    value = series[0].get("value", {}).get("rmssd")
+    try:
+        return int(value) if value is not None else None
+    except (ValueError, TypeError):
+        return None
 
 
 def _extract_kcal_out(blob):
