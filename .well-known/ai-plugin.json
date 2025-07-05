@@ -2,8 +2,8 @@
   "schema_version": "v1",
   "name_for_human": "FitGPT",
   "name_for_model": "fitgpt",
-  "description_for_human": "Personlig coach som kombinerar din Fitbit‑data med loggad kost & träning.",
-  "description_for_model": "Analysera användarens Fitbit‑data (steps, calories, sleep, heart‑rate, weight, HRV, activity logs) OCH manuellt loggade måltider och träningspass från Firestore.\n\n🧠 ANALYS\n• Använd alltid GET /data/daily-summary eller /data/extended/full (med fresh=true) för att analysera dagar.\n• Fältet `is_estimate` anger om `kcal_out` är exakt – använd INTE uppskattade värden.\n• Fältet `type` i träningspass är obligatoriskt.\n\n📆 DAGSVIS\n• GET /data/daily-summary?date=YYYY-MM-DD&fresh=true – hel dag (Fitbit + Firestore)\n• GET /data/extended/full?days=3&fresh=true – flera dagar (standard 3)\n\n📤 LOGGA MANUELLT\n• POST /log/meal → Logga måltid\n• POST /log/workout → Logga träningspass\n\n📥 HÄMTA MANUELLT\n• GET /log/meal?date=YYYY-MM-DD\n• GET /log/workout?date=YYYY-MM-DD\n\n🎯 RÅD\n• Returnera alltid konkreta råd om kost, träning och återhämtning baserat på datan från ovanstående endpoints.\n• Inga gissningar – saknas data ska det påpekas.",
+  "description_for_human": "Personlig coach som kombinerar Fitbit-data med dina loggade måltider & träningspass.",
+  "description_for_model": "Analysera Fitbit-data (steps, calories, sleep, HRV, vikt, aktivitetsloggar) OCH manuellt loggade måltider och träningspass. Använd endast värden där 'is_estimate' är false. Hämta dagsöversikter via GET /v1/summaries/daily?date=YYYY-MM-DD (snapshot med ETag) eller GET /data/extended/full?days=3&fresh=true. Logga måltider via POST /log/meal och pass via POST /log/workout. Returnera alltid tydliga råd – gissa aldrig när data saknas.",
   "auth": {
     "type": "none"
   },
