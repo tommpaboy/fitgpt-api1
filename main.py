@@ -89,30 +89,57 @@ _cache_set        = CACHE.__setitem__
 _cache_invalidate = lambda k: CACHE.pop(k, None)        # safe pop
 
 # ─────────  Pydantic-modeller  ─────────
+from pydantic import BaseModel, Field, validator, root_validator
+from datetime  import datetime
+from typing    import Optional
+
 class MealLog(BaseModel):
     date: str
     meal: str
     items: str
     estimated_calories: Optional[int] = None
 
+    # normalisera datum ⇒ YYYY-MM-DD
     _iso = validator("date", allow_reuse=True)(
         lambda v: datetime.fromisoformat(v).date().isoformat()  # type: ignore
     )
 
 
 class WorkoutLog(BaseModel):
+    """
+    • Klienten får skicka ANTINGEN 'type' (nytt) ELLER 'workout_type' (äldre).
+    • Skickas båda ⇒ 422 med tydligt felmeddelande.
+    • Sparas alltid i Firestore som fältet "type".
+    """
     date: str
-    workout_type: str = Field(..., alias="type")     # accepterar båda
+    workout_type: str = Field(..., alias="type")   # primärt fält, alias='type'
     details: str
     start_time: Optional[str] = Field(None, alias="startTime")
 
+    # normalisera datum
     _iso = validator("date", allow_reuse=True)(
         lambda v: datetime.fromisoformat(v).date().isoformat()  # type: ignore
     )
 
+    # tillåt exakt ett av fälten
+    @root_validator(pre=True)
+    def _coerce_or_error(cls, values):
+        has_new = "type" in values
+        has_old = "workout_type" in values
+
+        if has_new and has_old:
+            raise ValueError("Skicka antingen 'type' ELLER 'workout_type' – inte båda.")
+
+        # om bara det gamla fältet kom in → mappa till 'type'
+        if has_old and not has_new:
+            values["type"] = values.pop("workout_type")
+
+        return values
+
     class Config:
-        allow_population_by_field_name = True
+        allow_population_by_field_name = True   # gör att .dict(by_alias=…) funkar
         allow_population_by_alias      = True
+        extra = "forbid"               # okända fält ⇒ 422
 
 # ─────────  Auth helper  ─────────
 def verify_auth(request: Request):
