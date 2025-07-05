@@ -317,7 +317,8 @@ def get_workouts(date: str):
 def _combine_workouts(date_str: str):
     manual = [{**w, "source": "manual"} for w in _fetch_manual_workouts(date_str)]
     auto   = [{**a, "source": "fitbit"} for a in _fitbit_activity_logs(date_str)]
-    merged, used: Set[int] = [], set()
+    merged = []
+used: Set[int] = set()
 
     # 1) match manuella med start_time
     for m in manual:
