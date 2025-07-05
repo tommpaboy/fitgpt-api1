@@ -1,31 +1,30 @@
-"""
-🏋️‍♂️ FitGPT – main.py  (rev 2025-07-06 stable)
-──────────────────────────────────────────────
-• Alias /sammanfatta  (idag|igår|YYYY-MM-DD)  + days_back
-• Svenska CRUD-vägar  /logga/måltid   /logga/pass
-• WorkoutLog accepterar “type” OCH “workout_type”
-• Heuristisk start_time, cache-invalidering, toast-svar
-• Legacy-proxyer och /daily-summary finns kvar
-• Bugfixar:
-  – _combine_workouts anropar helper (ej route)
-  – merged/used typannotering delad
-  – säker cache.pop
-  – HRV NoneType
-  – konsekvent indrag
-"""
+# 🏋️‍♂️ FitGPT – main.py  (rev 2025-07-06 stable + snapshot-patch 2025-07-05)
+# ────────────────────────────────────────────────────────────────────────────
+# • Alias /sammanfatta  (idag|igår|YYYY-MM-DD)  + days_back
+# • Svenska CRUD-vägar  /logga/måltid   /logga/pass
+# • WorkoutLog accepterar “type” OCH “workout_type”
+# • Heuristisk start_time, cache-invalidering, toast-svar
+# • Legacy-proxyer och /daily-summary finns kvar
+# • Bugfixar:
+#   – _combine_workouts anropar helper (ej route)
+#   – merged/used typannotering delad
+#   – säker cache.pop
+#   – HRV NoneType
+#   – konsekvent indrag
+# • NYTT: dagliga snapshots + ETag-cache (/v1/summaries/daily)
 
 from __future__ import annotations
 
 # ─────────  Standard & 3P  ─────────
 import os, json, re, time, base64, requests
-from datetime import datetime, timedelta, date as dt_date
+from datetime import datetime, timedelta, timezone, date as dt_date
 from typing import Optional, List, Dict, Any, Set
 
 from fastapi import FastAPI, HTTPException, Body, Depends, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, root_validator, ConfigDict
 from zoneinfo import ZoneInfo
 from cachetools import TTLCache
 from dotenv import load_dotenv
@@ -58,8 +57,9 @@ app.add_middleware(
 cred_info: Dict[str, Any] = json.loads(os.getenv("FIREBASE_CRED_JSON", "{}"))
 firebase_creds = service_account.Credentials.from_service_account_info(cred_info)
 db = firestore.Client(credentials=firebase_creds, project=cred_info.get("project_id"))
-MEAL_COL    = db.collection("meals")
-WORKOUT_COL = db.collection("workouts")
+MEAL_COL        = db.collection("meals")
+WORKOUT_COL     = db.collection("workouts")
+SNAPSHOT_COL    = db.collection("daily_snapshots")          # 🆕 snapshot-samling
 
 # ─────────  Datum-helpers  ─────────
 ALIAS = {"idag": 0, "igår": 1, "förrgår": 2}
@@ -89,39 +89,27 @@ _cache_set        = CACHE.__setitem__
 _cache_invalidate = lambda k: CACHE.pop(k, None)        # safe pop
 
 # ─────────  Pydantic-modeller  ─────────
-from pydantic import BaseModel, Field, validator, root_validator
-from datetime  import datetime
-from typing    import Optional
-
 class MealLog(BaseModel):
     date: str
     meal: str
     items: str
     estimated_calories: Optional[int] = None
 
-    # normalisera datum ⇒ YYYY-MM-DD
     _iso = validator("date", allow_reuse=True)(
         lambda v: datetime.fromisoformat(v).date().isoformat()  # type: ignore
     )
 
 
 class WorkoutLog(BaseModel):
-    """
-    • Klienten får skicka ANTINGEN 'type' (nytt) ELLER 'workout_type' (äldre).
-    • Skickas båda ⇒ 422 med tydligt felmeddelande.
-    • Sparas alltid i Firestore som fältet "type".
-    """
     date: str
-    workout_type: str = Field(..., alias="type")   # primärt fält, alias='type'
+    workout_type: str = Field(..., alias="type")
     details: str
     start_time: Optional[str] = Field(None, alias="startTime")
 
-    # normalisera datum
     _iso = validator("date", allow_reuse=True)(
         lambda v: datetime.fromisoformat(v).date().isoformat()  # type: ignore
     )
 
-    # tillåt exakt ett av fälten
     @root_validator(pre=True)
     def _coerce_or_error(cls, values):
         has_new = "type" in values
@@ -130,16 +118,15 @@ class WorkoutLog(BaseModel):
         if has_new and has_old:
             raise ValueError("Skicka antingen 'type' ELLER 'workout_type' – inte båda.")
 
-        # om bara det gamla fältet kom in → mappa till 'type'
         if has_old and not has_new:
             values["type"] = values.pop("workout_type")
 
         return values
 
     class Config:
-        allow_population_by_field_name = True   # gör att .dict(by_alias=…) funkar
+        allow_population_by_field_name = True
         allow_population_by_alias      = True
-        extra = "forbid"               # okända fält ⇒ 422
+        extra = "forbid"
 
 # ─────────  Auth helper  ─────────
 def verify_auth(request: Request):
@@ -264,7 +251,7 @@ def _fitbit_activity_logs(date_str: str):
 
 # ─────────  Workout-helpers  ─────────
 def _extract_duration_min(t: str):
-    m = re.search(r"(\\d+)\\s*(?:min|\\bmins?\\b|\\bm\\b)", t.lower()) if t else None
+    m = re.search(r"(\d+)\s*(?:min|\bmins?\b|\bm\b)", t.lower()) if t else None
     return int(m.group(1)) if m else None
 
 
@@ -305,6 +292,13 @@ def _fetch_meals(d: str) -> List[Dict[str, Any]]:
 def _fetch_manual_workouts(d: str) -> List[Dict[str, Any]]:
     return [{"id": doc.id, **doc.to_dict()} for doc in WORKOUT_COL.where("date", "==", d).stream()]
 
+# ─────────  Snapshot-helper  🆕  ─────────
+def _update_daily_snapshot(d: str):
+    """Bygger dags-sammanfattning och sparar i snapshot-samlingen."""
+    summary = _build_daily_summary(d)
+    summary["updated_at"] = firestore.SERVER_TIMESTAMP
+    SNAPSHOT_COL.document(d).set(summary)
+
 # ─────────  CRUD Meal  ─────────
 @app.post("/logga/måltid", dependencies=[Depends(verify_auth)])
 @app.post("/log/meal",     dependencies=[Depends(verify_auth)])  # legacy
@@ -312,6 +306,7 @@ def post_meal(entry: MealLog = Body(...)):
     doc_id = f"{entry.date}-{entry.meal.lower()}"
     MEAL_COL.document(doc_id).set(entry.dict(exclude_none=True))
     _cache_invalidate(entry.date)
+    _update_daily_snapshot(entry.date)                          # 🆕 håll snapshot aktuell
     daily = _get_daily_summary(entry.date, force_fresh=True)
     return {"toast": f"✅ Måltid '{entry.meal}' loggad.", "daily": daily, "id": doc_id}
 
@@ -329,6 +324,7 @@ def post_workout(entry: WorkoutLog = Body(...)):
         entry.start_time = _infer_start_time(entry) or datetime.now(SE_TZ).isoformat()
     doc_id = WORKOUT_COL.add(entry.dict(by_alias=True, exclude_none=True))[1].id
     _cache_invalidate(entry.date)
+    _update_daily_snapshot(entry.date)                          # 🆕 håll snapshot aktuell
     daily = _get_daily_summary(entry.date, force_fresh=True)
     return {"toast": f"✅ Pass '{entry.workout_type}' loggat.", "daily": daily, "id": doc_id}
 
@@ -354,7 +350,7 @@ def _combine_workouts(d: str):
             continue
         try:
             m_ts = datetime.fromisoformat(st)
-            if m_ts.tzinfo is None:               # gör "naive" → Europe/Stockholm
+            if m_ts.tzinfo is None:
                 m_ts = m_ts.replace(tzinfo=SE_TZ)
         except Exception:
             merged.append(m)
@@ -371,7 +367,6 @@ def _combine_workouts(d: str):
             except Exception:
                 continue
 
-            # om pass inom ±30 min ⇒ samma pass
             if abs((a_ts - m_ts).total_seconds()) < 1800:
                 used.add(idx)
                 merged.append({**a, **m, "source": "merged"})
@@ -473,6 +468,26 @@ def daily_summary_alias(date: Optional[str] = None,
                         target_date: Optional[str] = None,
                         fresh: bool = False):
     return sammanfatta(datum=date or target_date, fresh=fresh)
+
+# ─────────  Snapshot endpoint  🆕  ─────────
+@app.get("/v1/summaries/daily")
+def get_daily_snapshot(date: str, request: Request):
+    """Caching-säker daglig snapshot med ETag (löser midnatt-glömskan)."""
+    doc = SNAPSHOT_COL.document(date).get()
+    if not doc.exists:
+        # Skapa snapshot “on demand” första gången
+        _update_daily_snapshot(date)
+        doc = SNAPSHOT_COL.document(date).get()
+
+    data = doc.to_dict()
+    etag = data.get("updated_at")
+    if isinstance(etag, datetime):
+        etag = etag.isoformat()
+
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304)
+
+    return JSONResponse(content=data, headers={"ETag": etag})
 
 # ─────────  Fitbit-proxys  ─────────
 @app.get("/data/steps")
