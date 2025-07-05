@@ -53,6 +53,33 @@ paths:
       x-openai-isConsequential: false
 
   ###############################################
+  # 🆕  Snapshot-endpoint (stabil nyckel + ETag)
+  ###############################################
+  /v1/summaries/daily:
+    get:
+      summary: Daglig snapshot (cachad, ETag, stabil nyckel)
+      operationId: getDailySnapshot
+      parameters:
+        - in: query
+          name: date
+          required: true
+          description: Datum (YYYY-MM-DD)
+          schema: {type: string, format: date}
+      responses:
+        "200":
+          description: OK
+          headers:
+            ETag:
+              description: Snapshot-version
+              schema: {type: string}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DailySnapshot'}
+        "304": {description: Oförändrad sedan angivet ETag}
+        "404": {description: Snapshot saknas}
+      x-openai-isConsequential: false
+
+  ###############################################
   # Gamla primär-endpointen (deprecated)
   ###############################################
   /data/daily-summary:
@@ -221,6 +248,14 @@ components:
         hrv:         {type: integer, nullable: true}
         meals:       {type: array, items: {$ref: '#/components/schemas/MealLog'}}
         workouts:    {type: array, items: {$ref: '#/components/schemas/WorkoutLog'}}
+
+    # 🆕  Snapshot-schema (GenericObject + tidsstämpel)
+    DailySnapshot:
+      allOf:
+        - {$ref: '#/components/schemas/GenericObject'}
+        - type: object
+          properties:
+            updated_at: {type: string, format: date-time}
 
     MealLog:
       type: object
