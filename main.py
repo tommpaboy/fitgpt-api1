@@ -340,39 +340,48 @@ def get_workouts(date: str):
 
 # ─────────  Merge-pass  ─────────
 def _combine_workouts(d: str):
+    """Slår ihop manuella och Fitbit-pass + hanterar tidszon."""
     manual = [{**w, "source": "manual"} for w in _fetch_manual_workouts(d)]
-    auto   = [{**a, "source": "fitbit"} for a in _fitbit_activity_logs(d)]
+    auto   = [{**a, "source": "fitbit"}  for a in _fitbit_activity_logs(d)]
 
     merged: List[Dict[str, Any]] = []
     used: Set[int] = set()
 
-    # 1) manuella med tid
+    # 1) manuella med start_time
     for m in manual:
         st = m.get("start_time") or m.get("startTime")
         if not st:
             continue
         try:
             m_ts = datetime.fromisoformat(st)
+            if m_ts.tzinfo is None:               # gör "naive" → Europe/Stockholm
+                m_ts = m_ts.replace(tzinfo=SE_TZ)
         except Exception:
             merged.append(m)
             continue
+
         matched = False
         for idx, a in enumerate(auto):
             if idx in used:
                 continue
             try:
                 a_ts = datetime.fromisoformat(a["originalStartTime"][:-6])
+                if a_ts.tzinfo is None:
+                    a_ts = a_ts.replace(tzinfo=SE_TZ)
             except Exception:
                 continue
+
+            # om pass inom ±30 min ⇒ samma pass
             if abs((a_ts - m_ts).total_seconds()) < 1800:
                 used.add(idx)
                 merged.append({**a, **m, "source": "merged"})
                 matched = True
                 break
+
         if not matched:
             merged.append(m)
 
-    # 2) manuella utan tid
+    # 2) manuella utan tid ⇒ heuristisk match
     for m in [x for x in manual if not (x.get("start_time") or x.get("startTime"))]:
         idx, conf = _guess_auto_match(m, auto, used)
         if idx is not None and conf >= 0.8:
@@ -382,8 +391,10 @@ def _combine_workouts(d: str):
         else:
             merged.append({**m, "needs_confirmation": True})
 
+    # 3) lägg till ev. kvarvarande Fitbit-pass
     merged.extend([a for i, a in enumerate(auto) if i not in used])
     return merged
+
 
 # ─────────  Extract-helpers  ─────────
 _sum_cals = lambda meals: sum(m.get("estimated_calories", 0) or 0 for m in meals)
