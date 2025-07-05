@@ -102,19 +102,26 @@ class MealLog(BaseModel):
     items: str
     estimated_calories: Optional[int] = None
 
+    # normalisera datum
     _iso = validator("date", allow_reuse=True)(
         lambda v: datetime.fromisoformat(v).date().isoformat()  # type: ignore
     )
 
 
 class WorkoutLog(BaseModel):
+    """
+    Accepterar **både**:
+      { "type": "Styrkepass", ... }       ← nytt/GPT
+      { "workout_type": "Styrkepass", ... } ← äldre data
+    Sparas som `"type"` i Firestore (by_alias=True).
+    """
     date: str
-    type: str
+    workout_type: str = Field(..., alias="type")
     details: str
     start_time: Optional[str] = Field(
         None,
         alias="startTime",
-        description="ISO-tid. Tomt ⇒ FitGPT gissar eller sätter nu.",
+        description="ISO-tid: YYYY-MM-DDTHH:MM:SS (tomt ⇒ gissas/sätts nu)",
     )
 
     _iso = validator("date", allow_reuse=True)(
@@ -122,7 +129,9 @@ class WorkoutLog(BaseModel):
     )
 
     class Config:
+        # gör det möjligt att POST:a med antingen "type" eller "workout_type"
         allow_population_by_field_name = True
+        allow_population_by_alias = True
 
 # ─────────────── Auth helper ───────────────
 def verify_auth(request: Request):
@@ -327,21 +336,17 @@ def get_meals(date: str):
 def post_workout(entry: WorkoutLog = Body(...)):
     if not entry.start_time:
         entry.start_time = _infer_start_time(entry) or datetime.now(SE_TZ).isoformat()
+
+    # Spara alltid med alias (=> fältet heter "type" i Firestore)
     doc_id = WORKOUT_COL.add(entry.dict(by_alias=True, exclude_none=True))[1].id
+
     _cache_invalidate(entry.date)
     daily = _get_daily_summary(entry.date, force_fresh=True)
     return {
-        "toast": f"✅ Pass '{entry.type}' loggat.",
+        "toast": f"✅ Pass '{entry.workout_type}' loggat.",
         "daily": daily,
         "id": doc_id,
     }
-
-
-@app.get("/logga/pass")
-@app.get("/log/workout")
-def get_workouts(date: str):
-    docs = WORKOUT_COL.where("date", "==", date).stream()
-    return [{"id": d.id, **d.to_dict()} for d in docs]
 
 # ─────────────── Merge-pass (manual+auto) ───────────────
 def _combine_workouts(date_str: str):
