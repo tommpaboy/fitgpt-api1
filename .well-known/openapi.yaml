@@ -15,9 +15,6 @@ servers:
   - url: https://fitgpt-2364.onrender.com
 
 paths:
-  ###############################################
-  # Ny primär dagsöversikt (aliasvänlig)
-  ###############################################
   /sammanfatta:
     get:
       summary: Dagens sammanfattning (Fitbit + Firestore)
@@ -26,13 +23,21 @@ paths:
         - in: query
           name: days_back
           description: Hämta X dagar bakåt (0 = idag, 1 = igår …)
-          schema: {type: integer, minimum: 0}
+          schema:
+            type: integer
+            minimum: 0
         - in: query
           name: fresh
           description: true → hoppa cache
-          schema: {type: boolean}
+          schema:
+            type: boolean
       responses:
-        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericObject'
       x-openai-isConsequential: false
 
   /sammanfatta/{datum}:
@@ -44,20 +49,28 @@ paths:
           name: datum
           required: true
           description: YYYY-MM-DD eller alias (idag|igår|förrgår)
-          schema: {type: string}
+          schema:
+            type: string
         - in: query
           name: fresh
-          schema: {type: boolean}
+          schema:
+            type: boolean
       responses:
-        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericObject'
       x-openai-isConsequential: false
 
-       /time:
+  /time:
     get:
       summary: Hämta aktuell tid i Europe/Stockholm
       operationId: getTime
+      description: Returnerar aktuell tid som ISO 8601-sträng i tidszonen Europe/Stockholm.
       responses:
-        '200':
+        "200":
           description: Tidspunkt i ISO-format
           content:
             application/json:
@@ -69,9 +82,6 @@ paths:
                     format: date-time
                     example: "2025-07-08T22:34:00+02:00"
 
-  ###############################################
-  # 🆕  Snapshot-endpoint (stabil nyckel + ETag)
-  ###############################################
   /v1/summaries/daily:
     get:
       summary: Daglig snapshot (cachad, ETag, stabil nyckel)
@@ -81,46 +91,54 @@ paths:
           name: date
           required: true
           description: Datum (YYYY-MM-DD)
-          schema: {type: string, format: date}
+          schema:
+            type: string
+            format: date
       responses:
         "200":
           description: OK
           headers:
             ETag:
               description: Snapshot-version
-              schema: {type: string}
+              schema:
+                type: string
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/DailySnapshot'}
-        "304": {description: Oförändrad sedan angivet ETag}
-        "404": {description: Snapshot saknas}
+              schema:
+                $ref: '#/components/schemas/DailySnapshot'
+        "304":
+          description: Oförändrad sedan angivet ETag
+        "404":
+          description: Snapshot saknas
       x-openai-isConsequential: false
 
-  ###############################################
-  # Gamla primär-endpointen (deprecated)
-  ###############################################
   /data/daily-summary:
     get:
-      summary: **DEPRECATED** – använd /sammanfatta
+      summary: "**DEPRECATED** – använd /sammanfatta"
       deprecated: true
       operationId: getDailySummaryLegacy
       parameters:
         - in: query
           name: date
-          schema: {type: string, format: date}
+          schema:
+            type: string
+            format: date
         - in: query
           name: fresh
-          schema: {type: boolean}
+          schema:
+            type: boolean
       responses:
-        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericObject'
       x-openai-isConsequential: false
 
   /daily-summary:
-    $ref: '#/paths/~1data~1daily-summary'   # alias till samma definition
+    $ref: '#/paths/~1data~1daily-summary'
 
-  ###############################################
-  # Fitbit-bulk (oförändrad)
-  ###############################################
   /data/extended:
     get:
       summary: Fitbit-detaljer (1–N dagar)
@@ -128,12 +146,22 @@ paths:
       parameters:
         - in: query
           name: days
-          schema: {type: integer, minimum: 1, default: 1}
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
         - in: query
           name: target_date
-          schema: {type: string, format: date}
+          schema:
+            type: string
+            format: date
       responses:
-        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericObject'
       x-openai-isConsequential: false
 
   /data/extended/full:
@@ -143,75 +171,143 @@ paths:
       parameters:
         - in: query
           name: days
-          schema: {type: integer, minimum: 1, default: 3}
+          schema:
+            type: integer
+            minimum: 1
+            default: 3
         - in: query
           name: fresh
-          schema: {type: boolean}
+          schema:
+            type: boolean
       responses:
-        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericObject'
       x-openai-isConsequential: false
 
-  ###############################################
-  # Små Fitbit-proxys (oförändrade)
-  ###############################################
   /data/steps:
     get:
       summary: Steg för datum
       operationId: getSteps
-      parameters: [{in: query, name: date, required: true, schema: {type: string, format: date}}]
+      parameters:
+        - in: query
+          name: date
+          required: true
+          schema:
+            type: string
+            format: date
       responses:
-        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericObject'
       x-openai-isConsequential: false
 
   /data/sleep:
     get:
       summary: Sömn för datum
       operationId: getSleep
-      parameters: [{in: query, name: date, required: true, schema: {type: string, format: date}}]
+      parameters:
+        - in: query
+          name: date
+          required: true
+          schema:
+            type: string
+            format: date
       responses:
-        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericObject'
       x-openai-isConsequential: false
 
   /data/heart:
     get:
       summary: Puls för datum
       operationId: getHeart
-      parameters: [{in: query, name: date, required: true, schema: {type: string, format: date}}]
+      parameters:
+        - in: query
+          name: date
+          required: true
+          schema:
+            type: string
+            format: date
       responses:
-        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericObject'
       x-openai-isConsequential: false
 
   /data/calories:
     get:
       summary: Förbrända kalorier för datum
       operationId: getCalories
-      parameters: [{in: query, name: date, required: true, schema: {type: string, format: date}}]
+      parameters:
+        - in: query
+          name: date
+          required: true
+          schema:
+            type: string
+            format: date
       responses:
-        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericObject'
       x-openai-isConsequential: false
 
-  ###############################################
-  # Meal-endpoints (nya + gamla vägar)
-  ###############################################
   /logga/måltid:
     post:
       summary: Logga måltid
       operationId: postMealNew
       requestBody:
         required: true
-        content: {application/json: {schema: {$ref: '#/components/schemas/MealLog'}}}
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MealLog'
       responses:
-        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericObject'
       x-openai-isConsequential: true
 
   /log/meal:
-    $ref: '#/paths/~1logga~1måltid'   # gammal POST + GET
+    $ref: '#/paths/~1logga~1måltid'
     get:
       summary: Hämta måltider för datum
       operationId: getMeals
-      parameters: [{in: query, name: date, required: true, schema: {type: string, format: date}}]
+      parameters:
+        - in: query
+          name: date
+          required: true
+          schema:
+            type: string
+            format: date
       responses:
-        "200": {description: OK, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/MealLog'}}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MealLog'
       x-openai-isConsequential: false
 
   /logga/pass:
@@ -220,9 +316,17 @@ paths:
       operationId: postWorkoutNew
       requestBody:
         required: true
-        content: {application/json: {schema: {$ref: '#/components/schemas/WorkoutLog'}}}
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkoutLog'
       responses:
-        "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericObject'
       x-openai-isConsequential: true
 
   /log/workout:
@@ -230,20 +334,40 @@ paths:
     get:
       summary: Hämta pass för datum
       operationId: getWorkouts
-      parameters: [{in: query, name: date, required: true, schema: {type: string, format: date}}]
+      parameters:
+        - in: query
+          name: date
+          required: true
+          schema:
+            type: string
+            format: date
       responses:
-        "200": {description: OK, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/WorkoutLog'}}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkoutLog'
       x-openai-isConsequential: false
 
-  ###############################################
-  # Health-check
-  ###############################################
   /health:
     get:
       summary: Deploy-hälsokontroll
       operationId: getHealth
       responses:
-        "200": {description: OK, content: {application/json: {schema: {type: object, properties: {status: {type: string}, time: {type: string}}}}}}
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  time:
+                    type: string
       x-openai-isConsequential: false
 
 components:
@@ -252,59 +376,72 @@ components:
       type: object
       additionalProperties: true
       properties:
-        date:        {type: string, format: date}
-        kcal_in:     {type: integer}
-        kcal_out:    {type: integer, nullable: true}
-        is_estimate: {type: boolean}
+        date:
+          type: string
+          format: date
+        kcal_in:
+          type: integer
+        kcal_out:
+          type: integer
+          nullable: true
+        is_estimate:
+          type: boolean
         sleep:
           type: object
           nullable: true
           properties:
-            minutes:    {type: integer}
-            efficiency: {type: integer}
-        hrv:         {type: integer, nullable: true}
-        meals:       {type: array, items: {$ref: '#/components/schemas/MealLog'}}
-        workouts:    {type: array, items: {$ref: '#/components/schemas/WorkoutLog'}}
+            minutes:
+              type: integer
+            efficiency:
+              type: integer
+        hrv:
+          type: integer
+          nullable: true
+        meals:
+          type: array
+          items:
+            $ref: '#/components/schemas/MealLog'
+        workouts:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkoutLog'
 
-    # 🆕  Snapshot-schema (GenericObject + tidsstämpel)
     DailySnapshot:
       allOf:
-        - {$ref: '#/components/schemas/GenericObject'}
+        - $ref: '#/components/schemas/GenericObject'
         - type: object
           properties:
-            updated_at: {type: string, format: date-time}
+            updated_at:
+              type: string
+              format: date-time
 
     MealLog:
       type: object
       required: [date, meal, items]
       properties:
-        date:               {type: string, format: date}
-        meal:               {type: string}
-        items:              {type: string}
-        estimated_calories: {type: integer, nullable: true}
+        date:
+          type: string
+          format: date
+        meal:
+          type: string
+        items:
+          type: string
+        estimated_calories:
+          type: integer
+          nullable: true
 
     WorkoutLog:
       type: object
       required: [date, type, details]
       properties:
-        date:       {type: string, format: date}
-        type:       {type: string}
-        details:    {type: string}
-        start_time: {type: string, format: date-time, nullable: true}
-
-        /time:
-  get:
-    summary: Aktuell lokal tid för coach-GPT
-    operationId: getTime
-    responses:
-      "200":
-        description: OK
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                now:
-                  type: string
-                  format: date-time
-
+        date:
+          type: string
+          format: date
+        type:
+          type: string
+        details:
+          type: string
+        start_time:
+          type: string
+          format: date-time
+          nullable: true
