@@ -181,9 +181,8 @@ def callback(code: str):
 def current_time():
     """Returnerar serverns aktuella tid i Europe/Stockholm (tz-aware ISO-8601)."""
     return {
-        "now": datetime.now(SE_TZ).isoformat(timespec="seconds")
+        "time": datetime.now(SE_TZ).isoformat(timespec="seconds")
     }
-
 # ─────────  Profil-endpoints  ─────────
 def _load_profile() -> Dict[str, Any]:
     return json.load(open(PROFILE_FILE)) if os.path.exists(PROFILE_FILE) else {}
