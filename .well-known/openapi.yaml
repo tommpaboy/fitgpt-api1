@@ -1,8 +1,7 @@
 openapi: 3.1.0
-
 info:
   title: FitGPT API
-  version: "2.1.0"
+  version: 2.1.0
   description: |
     API som kombinerar Fitbit-data (inkl. sömn & HRV) med manuellt loggade
     måltider och träningspass.
@@ -10,10 +9,8 @@ info:
     **Huvud-endpointen för GPT** är `/sammanfatta` (eller `/sammanfatta/{alias}`).
     Den returnerar samma JSON som gamla `/data/daily-summary`, men är enklare
     att anropa i en konversation.
-
 servers:
   - url: https://fitgpt-2364.onrender.com
-
 paths:
   /sammanfatta:
     get:
@@ -37,9 +34,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericObject'
+                $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: false
-
   /sammanfatta/{datum}:
     get:
       summary: Sammanfattning för explicit datum eller alias
@@ -61,9 +57,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericObject'
+                $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: false
-
   /time:
     get:
       summary: Hämta aktuell tid i Europe/Stockholm
@@ -80,8 +75,7 @@ paths:
                   time:
                     type: string
                     format: date-time
-                    example: "2025-07-08T22:34:00+02:00"
-
+                    example: 2025-07-08T22:34:00+02:00
   /v1/summaries/daily:
     get:
       summary: Daglig snapshot (cachad, ETag, stabil nyckel)
@@ -105,13 +99,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DailySnapshot'
+                $ref: "#/components/schemas/DailySnapshot"
         "304":
           description: Oförändrad sedan angivet ETag
         "404":
           description: Snapshot saknas
       x-openai-isConsequential: false
-
   /data/daily-summary:
     get:
       summary: "**DEPRECATED** – använd /sammanfatta"
@@ -133,34 +126,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericObject'
+                $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: false
-
   /daily-summary:
-  get:
-    summary: "**DEPRECATED** – använd /sammanfatta"
-    deprecated: true
-    operationId: getDailySummaryLegacy
-    parameters:
-      - in: query
-        name: date
-        schema:
-          type: string
-          format: date
-      - in: query
-        name: fresh
-        schema:
-          type: boolean
-    responses:
-      "200":
-        description: OK
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericObject'
-    x-openai-isConsequential: false
-
-
+    get:
+      summary: "**DEPRECATED** – använd /sammanfatta"
+      deprecated: true
+      operationId: getDailySummaryLegacyDuplicate
+      parameters:
+        - in: query
+          name: date
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: fresh
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+      x-openai-isConsequential: false
   /data/extended:
     get:
       summary: Fitbit-detaljer (1–N dagar)
@@ -183,9 +173,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericObject'
+                $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: false
-
   /data/extended/full:
     get:
       summary: Fitbit + Firestore för flera dagar
@@ -207,9 +196,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericObject'
+                $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: false
-
   /data/steps:
     get:
       summary: Steg för datum
@@ -227,9 +215,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericObject'
+                $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: false
-
   /data/sleep:
     get:
       summary: Sömn för datum
@@ -247,9 +234,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericObject'
+                $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: false
-
   /data/heart:
     get:
       summary: Puls för datum
@@ -267,9 +253,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericObject'
+                $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: false
-
   /data/calories:
     get:
       summary: Förbrända kalorier för datum
@@ -287,10 +272,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericObject'
+                $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: false
-
-  /logga/måltid:
+  /log/meal:
     post:
       summary: Logga måltid
       operationId: postMealNew
@@ -299,58 +283,36 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/MealLog'
+              $ref: "#/components/schemas/MealLog"
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericObject'
+                $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: true
-
-  /log/meal:
-  post:
-    summary: Logga måltid
-    operationId: postMealNew
-    requestBody:
-      required: true
-      content:
-        application/json:
+    get:
+      summary: Hämta måltider för datum
+      operationId: getMeals
+      parameters:
+        - in: query
+          name: date
+          required: true
           schema:
-            $ref: '#/components/schemas/MealLog'
-    responses:
-      "200":
-        description: OK
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericObject'
-    x-openai-isConsequential: true
-
-  get:
-    summary: Hämta måltider för datum
-    operationId: getMeals
-    parameters:
-      - in: query
-        name: date
-        required: true
-        schema:
-          type: string
-          format: date
-    responses:
-      "200":
-        description: OK
-        content:
-          application/json:
-            schema:
-              type: array
-              items:
-                $ref: '#/components/schemas/MealLog'
-    x-openai-isConsequential: false
-
-
-  /logga/pass:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MealLog"
+      x-openai-isConsequential: false
+  /log/workout:
     post:
       summary: Logga träningspass
       operationId: postWorkoutNew
@@ -359,57 +321,35 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/WorkoutLog'
+              $ref: "#/components/schemas/WorkoutLog"
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GenericObject'
+                $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: true
-
-  /log/workout:
-  post:
-    summary: Logga träningspass
-    operationId: postWorkoutNew
-    requestBody:
-      required: true
-      content:
-        application/json:
+    get:
+      summary: Hämta pass för datum
+      operationId: getWorkouts
+      parameters:
+        - in: query
+          name: date
+          required: true
           schema:
-            $ref: '#/components/schemas/WorkoutLog'
-    responses:
-      "200":
-        description: OK
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericObject'
-    x-openai-isConsequential: true
-
-  get:
-    summary: Hämta pass för datum
-    operationId: getWorkouts
-    parameters:
-      - in: query
-        name: date
-        required: true
-        schema:
-          type: string
-          format: date
-    responses:
-      "200":
-        description: OK
-        content:
-          application/json:
-            schema:
-              type: array
-              items:
-                $ref: '#/components/schemas/WorkoutLog'
-    x-openai-isConsequential: false
-
-
+            type: string
+            format: date
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkoutLog"
+      x-openai-isConsequential: false
   /health:
     get:
       summary: Deploy-hälsokontroll
@@ -427,7 +367,6 @@ paths:
                   time:
                     type: string
       x-openai-isConsequential: false
-
 components:
   schemas:
     GenericObject:
@@ -458,24 +397,25 @@ components:
         meals:
           type: array
           items:
-            $ref: '#/components/schemas/MealLog'
+            $ref: "#/components/schemas/MealLog"
         workouts:
           type: array
           items:
-            $ref: '#/components/schemas/WorkoutLog'
-
+            $ref: "#/components/schemas/WorkoutLog"
     DailySnapshot:
       allOf:
-        - $ref: '#/components/schemas/GenericObject'
+        - $ref: "#/components/schemas/GenericObject"
         - type: object
           properties:
             updated_at:
               type: string
               format: date-time
-
     MealLog:
       type: object
-      required: [date, meal, items]
+      required:
+        - date
+        - meal
+        - items
       properties:
         date:
           type: string
@@ -487,10 +427,12 @@ components:
         estimated_calories:
           type: integer
           nullable: true
-
     WorkoutLog:
       type: object
-      required: [date, type, details]
+      required:
+        - date
+        - type
+        - details
       properties:
         date:
           type: string
