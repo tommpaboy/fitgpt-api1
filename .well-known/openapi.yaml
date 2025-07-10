@@ -137,7 +137,29 @@ paths:
       x-openai-isConsequential: false
 
   /daily-summary:
-    $ref: '#/paths/~1data~1daily-summary'
+  get:
+    summary: "**DEPRECATED** – använd /sammanfatta"
+    deprecated: true
+    operationId: getDailySummaryLegacy
+    parameters:
+      - in: query
+        name: date
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: fresh
+        schema:
+          type: boolean
+    responses:
+      "200":
+        description: OK
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericObject'
+    x-openai-isConsequential: false
+
 
   /data/extended:
     get:
@@ -288,27 +310,45 @@ paths:
       x-openai-isConsequential: true
 
   /log/meal:
-    $ref: '#/paths/~1logga~1måltid'
-    get:
-      summary: Hämta måltider för datum
-      operationId: getMeals
-      parameters:
-        - in: query
-          name: date
-          required: true
+  post:
+    summary: Logga måltid
+    operationId: postMealNew
+    requestBody:
+      required: true
+      content:
+        application/json:
           schema:
-            type: string
-            format: date
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/MealLog'
-      x-openai-isConsequential: false
+            $ref: '#/components/schemas/MealLog'
+    responses:
+      "200":
+        description: OK
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericObject'
+    x-openai-isConsequential: true
+
+  get:
+    summary: Hämta måltider för datum
+    operationId: getMeals
+    parameters:
+      - in: query
+        name: date
+        required: true
+        schema:
+          type: string
+          format: date
+    responses:
+      "200":
+        description: OK
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/MealLog'
+    x-openai-isConsequential: false
+
 
   /logga/pass:
     post:
@@ -330,27 +370,45 @@ paths:
       x-openai-isConsequential: true
 
   /log/workout:
-    $ref: '#/paths/~1logga~1pass'
-    get:
-      summary: Hämta pass för datum
-      operationId: getWorkouts
-      parameters:
-        - in: query
-          name: date
-          required: true
+  post:
+    summary: Logga träningspass
+    operationId: postWorkoutNew
+    requestBody:
+      required: true
+      content:
+        application/json:
           schema:
-            type: string
-            format: date
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/WorkoutLog'
-      x-openai-isConsequential: false
+            $ref: '#/components/schemas/WorkoutLog'
+    responses:
+      "200":
+        description: OK
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericObject'
+    x-openai-isConsequential: true
+
+  get:
+    summary: Hämta pass för datum
+    operationId: getWorkouts
+    parameters:
+      - in: query
+        name: date
+        required: true
+        schema:
+          type: string
+          format: date
+    responses:
+      "200":
+        description: OK
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/WorkoutLog'
+    x-openai-isConsequential: false
+
 
   /health:
     get:
