@@ -52,6 +52,23 @@ paths:
         "200": {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/GenericObject'}}}}
       x-openai-isConsequential: false
 
+       /time:
+    get:
+      summary: Hämta aktuell tid i Europe/Stockholm
+      operationId: getTime
+      responses:
+        '200':
+          description: Tidspunkt i ISO-format
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  time:
+                    type: string
+                    format: date-time
+                    example: "2025-07-08T22:34:00+02:00"
+
   ###############################################
   # 🆕  Snapshot-endpoint (stabil nyckel + ETag)
   ###############################################
