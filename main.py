@@ -509,14 +509,38 @@ def proxy_heart(date: str):    return _fitbit_get("activities/heart", date, date
 @app.get("/data/calories")
 def proxy_cal(date: str):      return _fitbit_get("activities/calories", date, date)
 
-# ─────────  Extended FULL  ─────────
+from traceback import format_exc
+from fastapi import status
+
 @app.get("/data/extended/full")
 def extended_full(days: int = 1, fresh: bool = False):
     if days < 1:
-        raise HTTPException(400, "days måste vara ≥ 1")
-    dates = [(_today_se() - timedelta(days=i)).isoformat() for i in reversed(range(days))]
-    return {"from": dates[0], "to": dates[-1],
-            "days": {d: _get_daily_summary(d, force_fresh=fresh) for d in dates}}
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "days måste vara ≥ 1")
+    
+    try:
+        dates = [(_today_se() - timedelta(days=i)).isoformat() for i in reversed(range(days))]
+        result = {}
+
+        for d in dates:
+            try:
+                summary = _get_daily_summary(d, force_fresh=fresh)
+                result[d] = summary
+            except Exception as day_err:
+                print(f"⚠️ Fel vid sammanställning för {d}:")
+                print(format_exc())
+                result[d] = {"error": f"Kunde inte hämta data för {d}."}
+
+        return {
+            "from": dates[0],
+            "to": dates[-1],
+            "days": result
+        }
+
+    except Exception as e:
+        print("❌ Allmänt fel i /data/extended/full:")
+        print(format_exc())
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Internt fel vid hämtning av dagsdata.")
 
 # ─────────  Healthcheck  ─────────
 @app.get("/health")
