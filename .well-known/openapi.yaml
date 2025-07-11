@@ -151,30 +151,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: false
-  /data/extended:
-    get:
-      summary: Fitbit-detaljer (1–N dagar)
-      operationId: getExtended
-      parameters:
-        - in: query
-          name: days
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-        - in: query
-          name: target_date
-          schema:
-            type: string
-            format: date
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GenericObject"
-      x-openai-isConsequential: false
+  
   /data/extended/full:
     get:
       summary: Fitbit + Firestore för flera dagar
