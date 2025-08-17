@@ -12,6 +12,8 @@
 #   – HRV NoneType
 #   – konsekvent indrag
 # • NYTT: dagliga snapshots + ETag-cache (/v1/summaries/daily)
+# • UPPDATERAT (2025-08-17): MealLog.items = array av objekt, 201-svar på /log/meal,
+#   fallback om meal saknas, samt /_echo för diagnostik – alla med auth.
 
 from __future__ import annotations
 
@@ -89,10 +91,18 @@ _cache_set        = CACHE.__setitem__
 _cache_invalidate = lambda k: CACHE.pop(k, None)        # safe pop
 
 # ─────────  Pydantic-modeller  ─────────
+class MealItem(BaseModel):
+    name: str
+    kcal: float
+    protein_g: float
+    fat_g: Optional[float] = None
+    carbs_g: Optional[float] = None
+    notes: Optional[str] = None
+
 class MealLog(BaseModel):
     date: str
-    meal: str
-    items: str
+    meal: Optional[str] = None
+    items: List[MealItem]
     estimated_calories: Optional[int] = None
 
     _iso = validator("date", allow_reuse=True)(
@@ -183,6 +193,7 @@ def current_time():
     return {
         "time": datetime.now(SE_TZ).isoformat(timespec="seconds")
     }
+
 # ─────────  Profil-endpoints  ─────────
 def _load_profile() -> Dict[str, Any]:
     return json.load(open(PROFILE_FILE)) if os.path.exists(PROFILE_FILE) else {}
@@ -307,15 +318,17 @@ def _update_daily_snapshot(d: str):
     SNAPSHOT_COL.document(d).set(summary)
 
 # ─────────  CRUD Meal  ─────────
-@app.post("/logga/måltid", dependencies=[Depends(verify_auth)])
-@app.post("/log/meal",     dependencies=[Depends(verify_auth)])  # legacy
+@app.post("/logga/måltid", status_code=201, dependencies=[Depends(verify_auth)])
+@app.post("/log/meal",     status_code=201, dependencies=[Depends(verify_auth)])  # legacy
 def post_meal(entry: MealLog = Body(...)):
-    doc_id = f"{entry.date}-{entry.meal.lower()}"
+    meal_name = (entry.meal or "batch").lower()
+    doc_id = f"{entry.date}-{meal_name}"
+    # Spara som array av objekt, i linje med YAML
     MEAL_COL.document(doc_id).set(entry.dict(exclude_none=True))
     _cache_invalidate(entry.date)
     _update_daily_snapshot(entry.date)                          # 🆕 håll snapshot aktuell
-    daily = _get_daily_summary(entry.date, force_fresh=True)
-    return {"toast": f"✅ Måltid '{entry.meal}' loggad.", "daily": daily, "id": doc_id}
+    # YAML-kompatibelt svar (201)
+    return {"ok": True, "inserted_ids": [doc_id], "warnings": []}
 
 
 @app.get("/logga/måltid")
@@ -546,3 +559,19 @@ def extended_full(days: int = 1, fresh: bool = False):
 @app.get("/health")
 def health():
     return {"status": "ok", "time": datetime.now(SE_TZ).isoformat()}
+
+# ─────────  Echo-diagnostik (matchar YAML /_echo)  ─────────
+@app.post("/_echo", dependencies=[Depends(verify_auth)])
+def post_echo(payload: dict = Body(default={})):
+    """
+    Enkel diagnostik för Actions/Connector.
+    Anropa med valfri JSON för att verifiera att POST verkligen träffar servern.
+    Kräver Bearer auth likt övriga POST-endpoints.
+    """
+    try:
+        # Logga nycklarna för synlighet i Render-loggar
+        keys = list(payload.keys())[:10]
+        print(f"/_echo received keys={keys}")
+    except Exception:
+        pass
+    return {"ok": True, "received": payload}
