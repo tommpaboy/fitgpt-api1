@@ -151,7 +151,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: false
-  
   /data/extended/full:
     get:
       summary: Fitbit + Firestore för flera dagar
@@ -253,21 +252,54 @@ paths:
       x-openai-isConsequential: false
   /log/meal:
     post:
-      summary: Logga måltid
-      operationId: postMealNew
+      summary: Logga måltid (en eller flera items)
+      operationId: logMeal
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/MealLog"
+            examples:
+              enkel:
+                value:
+                  date: "2025-08-16"
+                  meal: "frukost"
+                  items:
+                    - { name: "proteinshake", kcal: 200, protein_g: 27 }
+                    - { name: "ägg x4",       kcal: 230, protein_g: 20 }
+                  estimated_calories: 430
+              batch:
+                value:
+                  date: "2025-08-16"
+                  items:
+                    - { name: "2 små Chicken Burgers", kcal: 580, protein_g: 32 }
+                    - { name: "2× GB Sandwich",         kcal: 410, protein_g: 6 }
       responses:
-        "200":
-          description: OK
+        "201":
+          description: Meals logged
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenericObject"
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  inserted_ids:
+                    type: array
+                    items:
+                      type: string
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+              examples:
+                ok:
+                  value:
+                    ok: true
+                    inserted_ids: ["meal_2025-08-16_0","meal_2025-08-16_1"]
+                    warnings: []
       x-openai-isConsequential: true
     get:
       summary: Hämta måltider för datum
@@ -344,6 +376,30 @@ paths:
                   time:
                     type: string
       x-openai-isConsequential: false
+  /_echo:
+    post:
+      summary: Eko POST (diagnostik)
+      operationId: postEcho
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  received:
+                    type: object
+                    additionalProperties: true
 components:
   schemas:
     GenericObject:
@@ -387,23 +443,53 @@ components:
             updated_at:
               type: string
               format: date-time
+    MealItem:
+      type: object
+      required: [name, kcal, protein_g]
+      properties:
+        name:
+          type: string
+          example: "proteinshake"
+        kcal:
+          type: number
+          example: 200
+        protein_g:
+          type: number
+          example: 27
+        fat_g:
+          type: number
+          nullable: true
+          example: 5
+        carbs_g:
+          type: number
+          nullable: true
+          example: 12
+        notes:
+          type: string
+          nullable: true
+          example: "vanilj"
     MealLog:
       type: object
       required:
         - date
-        - meal
         - items
       properties:
         date:
           type: string
           format: date
+          example: "2025-08-16"
         meal:
           type: string
+          nullable: true
+          example: "lunch"
         items:
-          type: string
+          type: array
+          items:
+            $ref: "#/components/schemas/MealItem"
         estimated_calories:
           type: integer
           nullable: true
+          example: 430
     WorkoutLog:
       type: object
       required:
