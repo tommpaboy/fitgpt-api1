@@ -252,8 +252,10 @@ paths:
       x-openai-isConsequential: false
   /log/meal:
     post:
-      summary: Logga måltid (en eller flera items)
+      summary: Logga måltid (lista av strängar)
       operationId: logMeal
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -266,15 +268,15 @@ paths:
                   date: "2025-08-16"
                   meal: "frukost"
                   items:
-                    - { name: "proteinshake", kcal: 200, protein_g: 27 }
-                    - { name: "ägg x4",       kcal: 230, protein_g: 20 }
+                    - "proteinshake (200 kcal, 27 g protein)"
+                    - "ägg x4 (230 kcal, 20 g protein)"
                   estimated_calories: 430
               batch:
                 value:
                   date: "2025-08-16"
                   items:
-                    - { name: "2 små Chicken Burgers", kcal: 580, protein_g: 32 }
-                    - { name: "2× GB Sandwich",         kcal: 410, protein_g: 6 }
+                    - "2 små Chicken Burgers (580 kcal, 32 g protein)"
+                    - "2× GB Sandwich (410 kcal, 6 g protein)"
       responses:
         "201":
           description: Meals logged
@@ -325,6 +327,8 @@ paths:
     post:
       summary: Logga träningspass
       operationId: postWorkoutNew
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -380,6 +384,8 @@ paths:
     post:
       summary: Eko POST (diagnostik)
       operationId: postEcho
+      security:
+        - BearerAuth: []
       requestBody:
         required: false
         content:
@@ -401,6 +407,11 @@ paths:
                     type: object
                     additionalProperties: true
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     GenericObject:
       type: object
@@ -443,31 +454,6 @@ components:
             updated_at:
               type: string
               format: date-time
-    MealItem:
-      type: object
-      required: [name, kcal, protein_g]
-      properties:
-        name:
-          type: string
-          example: "proteinshake"
-        kcal:
-          type: number
-          example: 200
-        protein_g:
-          type: number
-          example: 27
-        fat_g:
-          type: number
-          nullable: true
-          example: 5
-        carbs_g:
-          type: number
-          nullable: true
-          example: 12
-        notes:
-          type: string
-          nullable: true
-          example: "vanilj"
     MealLog:
       type: object
       required:
@@ -485,7 +471,10 @@ components:
         items:
           type: array
           items:
-            $ref: "#/components/schemas/MealItem"
+            type: string
+          example:
+            - "proteinshake (200 kcal, 27 g protein)"
+            - "ägg x4 (230 kcal, 20 g protein)"
         estimated_calories:
           type: integer
           nullable: true
