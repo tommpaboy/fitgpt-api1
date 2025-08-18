@@ -12,7 +12,7 @@
 #   – HRV NoneType
 #   – konsekvent indrag
 # • NYTT: dagliga snapshots + ETag-cache (/v1/summaries/daily)
-# • UPPDATERAT (2025-08-17): MealLog.items = array av objekt, 201-svar på /log/meal,
+# • UPPDATERAT (2025-08-18): MealLog.items = LISTA AV STRÄNGAR (List[str]), 201-svar på /log/meal,
 #   fallback om meal saknas, samt /_echo för diagnostik – alla med auth.
 
 from __future__ import annotations
@@ -91,18 +91,10 @@ _cache_set        = CACHE.__setitem__
 _cache_invalidate = lambda k: CACHE.pop(k, None)        # safe pop
 
 # ─────────  Pydantic-modeller  ─────────
-class MealItem(BaseModel):
-    name: str
-    kcal: float
-    protein_g: float
-    fat_g: Optional[float] = None
-    carbs_g: Optional[float] = None
-    notes: Optional[str] = None
-
 class MealLog(BaseModel):
     date: str
     meal: Optional[str] = None
-    items: List[MealItem]
+    items: List[str]  # ⬅️ ändrat: lista av strängar
     estimated_calories: Optional[int] = None
 
     _iso = validator("date", allow_reuse=True)(
@@ -323,7 +315,6 @@ def _update_daily_snapshot(d: str):
 def post_meal(entry: MealLog = Body(...)):
     meal_name = (entry.meal or "batch").lower()
     doc_id = f"{entry.date}-{meal_name}"
-    # Spara som array av objekt, i linje med YAML
     MEAL_COL.document(doc_id).set(entry.dict(exclude_none=True))
     _cache_invalidate(entry.date)
     _update_daily_snapshot(entry.date)                          # 🆕 håll snapshot aktuell
