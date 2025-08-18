@@ -11,6 +11,7 @@ info:
     att anropa i en konversation.
 servers:
   - url: https://fitgpt-2364.onrender.com
+
 paths:
   /sammanfatta:
     get:
@@ -36,6 +37,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: false
+
   /sammanfatta/{datum}:
     get:
       summary: Sammanfattning för explicit datum eller alias
@@ -59,6 +61,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: false
+
   /time:
     get:
       summary: Hämta aktuell tid i Europe/Stockholm
@@ -76,6 +79,7 @@ paths:
                     type: string
                     format: date-time
                     example: 2025-07-08T22:34:00+02:00
+
   /v1/summaries/daily:
     get:
       summary: Daglig snapshot (cachad, ETag, stabil nyckel)
@@ -105,6 +109,7 @@ paths:
         "404":
           description: Snapshot saknas
       x-openai-isConsequential: false
+
   /data/daily-summary:
     get:
       summary: "**DEPRECATED** – använd /sammanfatta"
@@ -128,6 +133,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: false
+
   /daily-summary:
     get:
       summary: "**DEPRECATED** – använd /sammanfatta"
@@ -151,6 +157,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: false
+
   /data/extended/full:
     get:
       summary: Fitbit + Firestore för flera dagar
@@ -174,6 +181,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: false
+
   /data/steps:
     get:
       summary: Steg för datum
@@ -193,6 +201,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: false
+
   /data/sleep:
     get:
       summary: Sömn för datum
@@ -212,6 +221,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: false
+
   /data/heart:
     get:
       summary: Puls för datum
@@ -231,6 +241,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: false
+
   /data/calories:
     get:
       summary: Förbrända kalorier för datum
@@ -250,6 +261,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/GenericObject"
       x-openai-isConsequential: false
+
   /log/meal:
     post:
       summary: Logga måltid (lista av strängar)
@@ -323,6 +335,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/MealLog"
       x-openai-isConsequential: false
+
   /log/workout:
     post:
       summary: Logga träningspass
@@ -363,6 +376,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/WorkoutLog"
       x-openai-isConsequential: false
+
   /health:
     get:
       summary: Deploy-hälsokontroll
@@ -380,6 +394,7 @@ paths:
                   time:
                     type: string
       x-openai-isConsequential: false
+
   /_echo:
     post:
       summary: Eko POST (diagnostik)
@@ -393,6 +408,10 @@ paths:
             schema:
               type: object
               additionalProperties: true
+            examples:
+              ping:
+                value:
+                  ping: 1
       responses:
         "200":
           description: OK
@@ -406,12 +425,20 @@ paths:
                   received:
                     type: object
                     additionalProperties: true
+              examples:
+                ok:
+                  value:
+                    ok: true
+                    received:
+                      ping: 1
+
 components:
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+
   schemas:
     GenericObject:
       type: object
@@ -446,6 +473,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/WorkoutLog"
+
     DailySnapshot:
       allOf:
         - $ref: "#/components/schemas/GenericObject"
@@ -454,6 +482,7 @@ components:
             updated_at:
               type: string
               format: date-time
+
     MealLog:
       type: object
       required:
@@ -479,6 +508,7 @@ components:
           type: integer
           nullable: true
           example: 430
+
     WorkoutLog:
       type: object
       required:
